@@ -1,0 +1,51 @@
+[
+  {
+    "slug": "jane-street-feb-2026",
+    "title": "it's alive",
+    "date": "2026-02-25T00:00:00",
+    "formatted_date": "February 25, 2026",
+    "reading_time": 8,
+    "tags": [
+      "jane-street",
+      "neural-networks",
+      "optimization",
+      "puzzles",
+      "combinatorics"
+    ],
+    "summary": "reassembling a 48-block neural network from 97 shuffled pieces, and why random chaos beat gradient descent.",
+    "series": "jane street puzzles",
+    "series_order": 1,
+    "has_math": false
+  },
+  {
+    "slug": "subleq-mesa",
+    "title": "the mesa at the end of the universe",
+    "date": "2025-03-09T00:00:00",
+    "formatted_date": "March 09, 2025",
+    "reading_time": 10,
+    "tags": [
+      "research",
+      "subleq",
+      "optimization",
+      "evolution"
+    ],
+    "summary": "we trained a transformer to be a computer. then we tried to find the programs it would run. turns out program space is a hitchhiker's nightmare.",
+    "series": "",
+    "series_order": 0,
+    "has_math": false
+  },
+  {
+    "slug": "welcome",
+    "title": "hello, world",
+    "date": "2025-01-27T00:00:00",
+    "formatted_date": "January 27, 2025",
+    "reading_time": 1,
+    "tags": [
+      "meta"
+    ],
+    "summary": "first post. what this is, why it exists, what's coming.",
+    "series": "",
+    "series_order": 0,
+    "has_math": false
+  }
+]

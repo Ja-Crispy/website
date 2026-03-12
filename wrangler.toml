@@ -1,0 +1,7 @@
+name = "portfolio"
+
+[site]
+bucket = "./public"
+
+[build]
+command = "pip install -r scripts/requirements.txt && python scripts/build_blog.py"

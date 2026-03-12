@@ -1,0 +1,85 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Node (if using npm scripts)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Generated blog files (uncomment if you want to regenerate on each deploy)
+# public/blog/*.html
+# src/blog/metadata.json
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+.cache/
+
+# Wrangler
+.wrangler/
+wrangler.toml.bak
+
+# Reference downloads (not source material)
+25102736WRYNZZV9/
+seatedro*
+
+# Temp/test images
+test.jpg
+example.jpg
+search.jpg
+yato_omg.jpg
+Screenshot*.png
+ascii-art.png
+
+# Mascot debug traces
+mascot-trace-*.json
+
+# Playwright screenshots
+.playwright-mcp/
+
+# Claude Code session data
+.claude/
+
+# Personal/reference files
+resume_3.json
+resume_3.pdf
+prd.md

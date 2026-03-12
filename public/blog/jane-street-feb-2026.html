@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>it's alive — vaishnav varma</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+  <div class="site-wrapper">
+
+    <nav class="site-nav">
+      <ul class="site-nav__links">
+        <li><a href="/">home</a></li>
+        <li><a href="/blog/" class="active">blog</a></li>
+        <li><a href="/work.html">work</a></li>
+      </ul>
+      <span class="cmd-hint" id="cmd-hint">ctrl+k</span>
+    </nav>
+
+    <article class="post-page">
+      <header class="post-header">
+        <h1 class="post-header__title">it's alive</h1>
+        <div class="post-header__meta">
+          <time datetime="2026-02-25T00:00:00">February 25, 2026</time>
+          <span>8 min read</span>
+        </div>
+        <div class="post-header__tags"><span class="tag">jane-street</span><span class="tag">neural-networks</span><span class="tag">optimization</span><span class="tag">puzzles</span><span class="tag">combinatorics</span></div>
+      </header>
+
+      <nav class="series-nav">
+        <div class="series-nav__label">jane street puzzles</div>
+        <ol class="series-nav__list">
+          <li class="series-nav__item series-nav__item--current">#1: it's alive</li>
+
+        </ol>
+      </nav>
+      <div class="post-content">
+        <blockquote>
+<p>"i collected the instruments of life around me, that i might infuse a spark of being into the lifeless thing that lay at my feet."
+— Mary Shelley, <em>Frankenstein</em></p>
+</blockquote>
+<p>Jane Street's <a href="https://huggingface.co/spaces/jane-street/droppedaneuralnet">february 2026 puzzle</a> gives you 97 weight files — the dismembered layers of a 48-block residual neural network — and asks you to stitch them back together. we have historical input/output data. we know the architecture. we have all the body parts. we just don't know which goes where.</p>
+<p>the search space is 48! × 48! ≈ 10^122. more atoms than the observable universe. squared.</p>
+<p>random chaos solved it in 40 minutes.</p>
+<h2 id="the-anatomy">the anatomy</h2>
+<p>the creature's architecture is a simple residual network:</p>
+<div class="codehilite"><pre><span></span><code>x = input (N×48)
+for block k in [0..47]:
+    x = x + out_k(relu(inp_k(x)))
+pred = final(x)
+</code></pre></div>
+
+<p><strong>97 pieces</strong>: 48 inp layers (96×48), 48 out layers (48×96), 1 final layer (1×48). we need to find which inp pairs with which out (the <em>pairing</em>) and what order the blocks go in (the <em>ordering</em>). the answer is a 97-element permutation, verified by SHA-256.</p>
+<p>we separated pieces by weight matrix shape and built a <code>CachedEvaluator</code> that stores intermediate activations after each residual block. when testing a swap at block k, it only recomputes from k onward. about 10x faster than naive evaluation. you need this — the creature has 48 organs and you'll be rearranging them thousands of times.</p>
+<h2 id="galvanism-mse-0957-0323">galvanism (MSE: 0.957 → 0.323)</h2>
+<p>the proper scientific approach. make it differentiable.</p>
+<p>we used <strong>Gumbel-Sinkhorn</strong> — relaxing discrete permutation matrices into continuous doubly-stochastic ones via Sinkhorn normalization. two 48×48 learnable matrices, one for ordering, one for pairing. temperature annealing from soft to hard, Hungarian projection for the final discrete answer.</p>
+<p>elegant. careful. the way Victor would've done it.</p>
+<p>three runs with different hyperparameters:
+- <strong>strong warm start</strong> (strength=5-8): trapped at MSE ≈ 0.323. every time. 3000 epochs of watching the loss flatline.
+- <strong>weak warm start</strong> (strength=3, noise=0.2): MSE ≈ 0.304. the noise found a different basin.
+- <strong>cold start</strong>: nothing useful. the landscape from scratch is too rugged.</p>
+<p>the problem is fundamental: <strong>differentiable relaxations smooth the discrete landscape so aggressively they can't resolve fine structure.</strong> the soft forward pass mixes all 48 pieces simultaneously — it literally can't represent "piece 43 goes in position 0, not a blend of pieces 43, 17, and 82."</p>
+<p>for reference, <a href="https://wangyi.ai/blog/2026/02/16/solving-jane-street-dropped-neural-net/">Yi Wang</a> used the same Gumbel-Sinkhorn approach and reached MSE ≈ 0.03. even Yi switched to local search for the endgame. the technique has a resolution ceiling.</p>
+<!-- MEME: [this-is-fine dog — "3000 epochs of sinkhorn, loss hasn't moved in 2000 iterations"] -->
+
+<h2 id="proof-of-death">proof of death</h2>
+<p>before giving up on the careful approach, we proved the creature was truly dead:</p>
+<ul>
+<li><strong>full cost matrix + Hungarian re-pairing</strong>: tried all 48 possible out-pieces at every position, built a 48×48 cost matrix, ran Hungarian for optimal assignment. <strong>result: 0 changes.</strong> already a robust local optimum — even this stronger method that can find 3-cycles and longer reassignment chains found nothing.</li>
+<li><strong>block removal analysis</strong>: checked if any block was actively harmful. all 48 contributed positively. none destructive, just suboptimal.</li>
+<li><strong>per-block exhaustive search</strong>: tried every possible inp and out at every position. no single swap improved anything.</li>
+</ul>
+<p>the solution needed coordinated multi-position changes that no pairwise method could find. the body was assembled wrong, and you couldn't fix it one organ at a time.</p>
+<!-- MEME: [surprised pikachu — "tried every single possible swap, none of them help"] -->
+
+<h2 id="the-lightning-bolt-mse-0304-0035">the lightning bolt (MSE: 0.304 → 0.035)</h2>
+<p>stuck at a provably strong local optimum, we tried something Victor Frankenstein would've appreciated: <strong>raw electricity.</strong> randomly shuffle out-pieces among k positions, then polish with 2-opt.</p>
+<p>trial 3: shuffle 6 blocks. MSE drops from 0.304 to <strong>0.272</strong>.</p>
+<p>wait, what?</p>
+<p>trial 7: shuffle 5 blocks. <strong>0.262.</strong>
+trial 10: shuffle 4 blocks. <strong>0.215.</strong>
+trial 14: shuffle 3 blocks. <strong>0.073.</strong>
+trial 19: shuffle 6 blocks. <strong>0.035.</strong></p>
+<p>each improvement became the starting point for the next jolt. the solution cascaded — fixing a few wrong pairings unlocked the next set of corrections. in 20 random perturbations, dumb shuffling accomplished what 3000 epochs of gradient descent couldn't.</p>
+<p>the creature twitched.</p>
+<p>but we hit a floor at 0.035. the perturbation only shuffled out-pieces (pairings). what about the ordering?</p>
+<!-- MEME: [drake meme — rejecting: "3000 epochs of differentiable optimization", accepting: "randomly shuffle 6 things and see what happens"] -->
+
+<h2 id="its-alive-mse-0035-0000">it's alive (MSE: 0.035 → 0.000)</h2>
+<p>the key insight: <strong>there are four semantically distinct ways to perturb the layer assignment</strong>, and each navigates a different region of the search space.</p>
+<table>
+<thead>
+<tr>
+<th>type</th>
+<th>what it shuffles</th>
+<th>what changes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>out</code></td>
+<td>out-pieces among k positions</td>
+<td>pairings only</td>
+</tr>
+<tr>
+<td><code>inp</code></td>
+<td>inp-pieces among k positions</td>
+<td>ordering only</td>
+</tr>
+<tr>
+<td><code>block</code></td>
+<td>entire blocks (inp+out together)</td>
+<td>ordering (preserves pairing)</td>
+</tr>
+<tr>
+<td><code>mixed</code></td>
+<td>inp and out independently</td>
+<td>everything</td>
+</tr>
+</tbody>
+</table>
+<p>we also added targeted perturbation: diagnostic analysis identifies blocks with high delta/x ratios (likely misplaced), and 40% of perturbations preferentially include these blocks. aim the lightning where the stitching looks wrong.</p>
+<p>the solve trace:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">trial</th>
+<th>type</th>
+<th style="text-align: center;">blocks</th>
+<th style="text-align: right;">MSE</th>
+<th style="text-align: right;">improvement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>block</td>
+<td style="text-align: center;">4</td>
+<td style="text-align: right;">0.03297</td>
+<td style="text-align: right;">0.00189</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td><strong>inp</strong></td>
+<td style="text-align: center;">5</td>
+<td style="text-align: right;">0.02423</td>
+<td style="text-align: right;">0.00874</td>
+</tr>
+<tr>
+<td style="text-align: right;">10</td>
+<td>out</td>
+<td style="text-align: center;">10</td>
+<td style="text-align: right;">0.02241</td>
+<td style="text-align: right;">0.00182</td>
+</tr>
+<tr>
+<td style="text-align: right;">11</td>
+<td><strong>inp</strong></td>
+<td style="text-align: center;">11</td>
+<td style="text-align: right;">0.02043</td>
+<td style="text-align: right;">0.00198</td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td><strong>inp</strong></td>
+<td style="text-align: center;">9</td>
+<td style="text-align: right;">0.01951</td>
+<td style="text-align: right;">0.00092</td>
+</tr>
+<tr>
+<td style="text-align: right;">14</td>
+<td><strong>inp</strong></td>
+<td style="text-align: center;">9</td>
+<td style="text-align: right;">0.01909</td>
+<td style="text-align: right;">0.00043</td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td><strong>inp</strong></td>
+<td style="text-align: center;">12</td>
+<td style="text-align: right;">0.01451</td>
+<td style="text-align: right;">0.00458</td>
+</tr>
+<tr>
+<td style="text-align: right;">17</td>
+<td>block</td>
+<td style="text-align: center;">4</td>
+<td style="text-align: right;">0.00811</td>
+<td style="text-align: right;">0.00640</td>
+</tr>
+<tr>
+<td style="text-align: right;">21</td>
+<td><strong>inp</strong></td>
+<td style="text-align: center;">10</td>
+<td style="text-align: right;">0.00382</td>
+<td style="text-align: right;">0.00429</td>
+</tr>
+<tr>
+<td style="text-align: right;"><strong>22</strong></td>
+<td><strong>out</strong></td>
+<td style="text-align: center;"><strong>13</strong></td>
+<td style="text-align: right;"><strong>0.00000</strong></td>
+<td style="text-align: right;"><strong>0.00382</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>solved in 22 perturbation trials.</strong> ~40 minutes on an RTX 3050 Laptop GPU.</p>
+<p>three things:</p>
+<ol>
+<li>
+<p><strong>inp perturbation found 6 of 10 improvements.</strong> reordering blocks — not re-pairing — dominated the endgame. exactly the move type our earlier solver never tried.</p>
+</li>
+<li>
+<p><strong>the killing blow was out-shuffling 13 blocks.</strong> after inp fixed the ordering, one large pairing correction snapped everything into place. the two perturbation types are complementary — you need both.</p>
+</li>
+<li>
+<p><strong>the cascade is real.</strong> each correction restructures the intermediate activations flowing through downstream blocks, changing which swaps become beneficial. fixing block 5's ordering might make block 23's pairing correction suddenly effective. you can't plan this. you keep jolting and see what the polish step finds.</p>
+</li>
+</ol>
+<p>the creature opened its eyes. MSE = 0.000. SHA-256 verified.</p>
+<!-- MEME: [frankenstein "it's alive!" scene — terminal showing MSE: 0.00000000000000] -->
+
+<h2 id="the-full-trajectory">the full trajectory</h2>
+<div class="codehilite"><pre><span></span><code><span class="mf">0.957</span><span class="w"> </span><span class="err">──→</span><span class="w"> </span><span class="mf">0.397</span><span class="w"> </span><span class="err">──→</span><span class="w"> </span><span class="mf">0.323</span><span class="w"> </span><span class="err">──→</span><span class="w"> </span><span class="mf">0.304</span><span class="w"> </span><span class="err">──→</span><span class="w"> </span><span class="mf">0.035</span><span class="w"> </span><span class="err">──→</span><span class="w"> </span><span class="mf">0.024</span><span class="w"> </span><span class="err">──→</span><span class="w"> </span><span class="mf">0.008</span><span class="w"> </span><span class="err">──→</span><span class="w"> </span><span class="mf">0.000</span>
+<span class="w"> </span><span class="n">v1</span><span class="w">        </span><span class="n">v4</span><span class="w">        </span><span class="n">v4</span><span class="w">        </span><span class="n">v5</span><span class="w">        </span><span class="n">v5</span><span class="w">        </span><span class="n">v7</span><span class="w">        </span><span class="n">v7</span><span class="w">        </span><span class="n">v7</span>
+<span class="mf">2</span><span class="o">-</span><span class="n">opt</span><span class="w">    </span><span class="nb">Sin</span><span class="n">khorn</span><span class="w">  </span><span class="nb">Sin</span><span class="n">khorn</span><span class="w">  </span><span class="nb">Sin</span><span class="n">khorn</span><span class="w">  </span><span class="n">random</span><span class="w">    </span><span class="n">typed</span><span class="w">     </span><span class="n">typed</span><span class="w">     </span><span class="n">typed</span>
+<span class="w">                   </span><span class="p">(</span><span class="n">weak</span><span class="p">)</span><span class="w">    </span><span class="p">(</span><span class="n">weak</span><span class="p">)</span><span class="w">    </span><span class="n">perturb</span><span class="w">   </span><span class="n">perturb</span><span class="w">   </span><span class="n">perturb</span><span class="w">   </span><span class="n">perturb</span>
+</code></pre></div>
+
+<p>two phase transitions:
+- <strong>0.304 → 0.035</strong>: random out-shuffling breaks through the Sinkhorn ceiling
+- <strong>0.035 → 0.000</strong>: adding inp/block/mixed types resolves the remaining structure</p>
+<h2 id="the-other-scientist">the other scientist</h2>
+<p>Yi Wang <a href="https://wangyi.ai/blog/2026/02/16/solving-jane-street-dropped-neural-net/">published a solution</a> with a different endgame:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Yi Wang</th>
+<th>us</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>mid-game</strong></td>
+<td>Gumbel-Sinkhorn → MSE ~0.03</td>
+<td>Gumbel-Sinkhorn → MSE ~0.323</td>
+</tr>
+<tr>
+<td><strong>endgame</strong></td>
+<td>combined 2-opt, alternating cycles</td>
+<td>multi-type perturbation + 2-opt polish</td>
+</tr>
+<tr>
+<td><strong>key insight</strong></td>
+<td>pairing corrections unlock ordering cascades</td>
+<td>diverse perturbation types escape basins</td>
+</tr>
+<tr>
+<td><strong>mechanism</strong></td>
+<td>exploiting diagonal valleys</td>
+<td>stochastic restarts, expanding neighborhoods</td>
+</tr>
+</tbody>
+</table>
+<p>Yi's Sinkhorn got much closer (0.03 vs our 0.323), likely better hyperparameter tuning. but the endgames are complementary — Yi's is <em>deterministic and exhaustive</em> within a fixed neighborhood, ours is <em>stochastic and variable-radius</em>. one exploits structure, the other explores it.</p>
+<p>hitting a higher Sinkhorn ceiling actually forced us down a more interesting path. when the careful method gets you 90% there, you reach for finer tools. when it gets you 70% there, you have to invent something different.</p>
+<h2 id="what-the-creature-taught-us">what the creature taught us</h2>
+<p>for combinatorial optimization over coupled discrete structures:</p>
+<p><strong>structured random perturbation beats both gradient relaxation and deterministic neighborhood expansion</strong> — but only when the perturbation operator is designed with domain knowledge.</p>
+<p>the four types aren't arbitrary. they decompose the solution space along the problem's natural axes: ordering vs pairing, coupled vs independent. a generic "shuffle k random positions" would work eventually, but typed perturbations converge faster because each navigates a different subspace of corrections.</p>
+<p>this is iterated local search (ILS), a well-studied metaheuristic. what's new here is the operator design — <strong>perturbation type diversity matters as much as perturbation radius.</strong> the winning sequence used 4 types across 4-13 blocks. no single type could've solved it alone.</p>
+<p>the broader principle: when you're stuck at a local optimum, don't just perturb harder. <strong>perturb differently.</strong></p>
+<p>Mary Shelley would've approved. the creature wasn't built by careful surgery. it was built by lightning.</p>
+<hr />
+<p><em>thanks to <a href="https://wangyi.ai/blog/2026/02/16/solving-jane-street-dropped-neural-net/">Yi Wang</a> for the complementary approach and insightful writeup. code at <a href="https://github.com/TODO">TODO</a>. the answer permutation SHA-256 hash: <code>093be1cf...e7d9c4</code>.</em></p>
+      </div>
+
+      <footer class="post-footer">
+        <a href="/blog/" class="back-link">&larr; all posts</a>
+      </footer>
+    </article>
+
+    <footer class="site-footer">
+      <span>&copy; 2025 vaishnav varma</span>
+      <span class="site-footer__signoff" id="footer-signoff"></span>
+      <div class="site-footer__links">
+        <a href="https://github.com/Ja-Crispy">gh</a>
+        <a href="https://www.linkedin.com/in/vaishnav-varma/">li</a>
+        <a href="mailto:vaisgovivarma@gmail.com">mail</a>
+      </div>
+    </footer>
+  </div>
+
+  <div id="command-palette" class="command-palette hidden">
+    <div class="command-palette__box">
+      <input type="text" id="command-input" class="command-palette__input"
+             placeholder="search or jump to..." autocomplete="off" spellcheck="false">
+      <div id="command-results" class="command-palette__results"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+  <script src="/js/main.js"></script>
+  
+</body>
+</html>

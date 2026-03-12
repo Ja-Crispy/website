@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>blog — vaishnav varma</title>
+  <meta name="description" content="thoughts on ml, research, and whatever else.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+  <div class="site-wrapper">
+
+    <nav class="site-nav">
+      <ul class="site-nav__links">
+        <li><a href="/">home</a></li>
+        <li><a href="/blog/" class="active">blog</a></li>
+        <li><a href="/work.html">work</a></li>
+      </ul>
+      <span class="cmd-hint" id="cmd-hint">ctrl+k</span>
+    </nav>
+
+    <section class="fade-in">
+      <h1 class="page-title">blog</h1>
+      <p class="page-desc">thoughts, research notes, and whatever else. written with <a href="https://claude.ai" style="color: var(--text-muted); text-decoration: underline; text-decoration-style: dotted;">claude</a>, my research partner.</p>
+
+      <input type="text" id="blog-search" class="blog-search" placeholder="search posts...">
+
+      <div id="blog-list">
+        <p class="text-muted text-sm">loading...</p>
+      </div>
+    </section>
+
+    <footer class="site-footer">
+      <span>&copy; 2025 vaishnav varma</span>
+      <span class="site-footer__signoff" id="footer-signoff"></span>
+      <div class="site-footer__links">
+        <a href="https://github.com/Ja-Crispy">gh</a>
+        <a href="https://www.linkedin.com/in/vaishnav-varma/">li</a>
+        <a href="mailto:vaisgovivarma@gmail.com">mail</a>
+      </div>
+    </footer>
+  </div>
+
+  <div id="command-palette" class="command-palette hidden">
+    <div class="command-palette__box">
+      <input type="text" id="command-input" class="command-palette__input" placeholder="search or jump to..." autocomplete="off" spellcheck="false">
+      <div id="command-results" class="command-palette__results"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+  <script src="/js/main.js"></script>
+  <script>
+    (async function() {
+      const list = document.getElementById('blog-list');
+      const search = document.getElementById('blog-search');
+      let allPosts = [];
+
+      try {
+        const resp = await fetch('/blog/metadata.json');
+        if (!resp.ok) throw new Error();
+        allPosts = await resp.json();
+      } catch {
+        list.textContent = '';
+        const p = document.createElement('p');
+        p.className = 'text-muted text-sm';
+        p.textContent = 'no posts yet. check back soon.';
+        list.appendChild(p);
+        return;
+      }
+
+      function render(posts) {
+        list.textContent = '';
+
+        if (posts.length === 0) {
+          const p = document.createElement('p');
+          p.className = 'text-muted text-sm';
+          p.textContent = 'no matching posts.';
+          list.appendChild(p);
+          return;
+        }
+
+        const ul = document.createElement('ul');
+        ul.className = 'post-list';
+
+        posts.forEach(function(post) {
+          const d = new Date(post.date);
+          const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+          const li = document.createElement('li');
+          const a = document.createElement('a');
+          a.href = '/blog/' + post.slug + '.html';
+          a.className = 'post-item';
+
+          const title = document.createElement('span');
+          title.className = 'post-item__title';
+          title.textContent = post.title;
+
+          const date = document.createElement('span');
+          date.className = 'post-item__date';
+          date.textContent = dateStr;
+
+          a.appendChild(title);
+          a.appendChild(date);
+          li.appendChild(a);
+          ul.appendChild(li);
+        });
+
+        list.appendChild(ul);
+      }
+
+      render(allPosts);
+
+      search.addEventListener('input', function() {
+        const q = search.value.toLowerCase().trim();
+        if (!q) { render(allPosts); return; }
+        const filtered = allPosts.filter(function(p) {
+          return p.title.toLowerCase().includes(q) ||
+            (p.summary || '').toLowerCase().includes(q) ||
+            (p.tags || []).some(function(t) { return t.toLowerCase().includes(q); });
+        });
+        render(filtered);
+      });
+    })();
+  </script>
+</body>
+</html>

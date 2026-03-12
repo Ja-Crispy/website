@@ -1,0 +1,202 @@
+/* Command Palette */
+.command-palette {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(26, 15, 46, 0.95);
+  backdrop-filter: blur(10px);
+  z-index: 9999;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.command-palette.hidden {
+  display: none;
+  opacity: 0;
+}
+
+.command-palette-container {
+  width: 100%;
+  max-width: 600px;
+  background: linear-gradient(135deg, #2a1f3d 0%, #3a2f4d 100%);
+  border: 2px solid rgba(255, 110, 199, 0.5);
+  border-radius: 12px;
+  box-shadow:
+    0 0 20px rgba(192, 132, 252, 0.3),
+    0 0 40px rgba(255, 110, 199, 0.2),
+    0 20px 60px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.command-palette input {
+  width: 100%;
+  padding: 1.25rem 1.5rem;
+  font-family: 'Berkeley Mono', 'Courier New', monospace;
+  font-size: 1.1rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(192, 132, 252, 0.3);
+  outline: none;
+  color: #67e8f9;
+  caret-color: #ff6ec7;
+}
+
+.command-palette input::placeholder {
+  color: rgba(184, 167, 217, 0.5);
+}
+
+.command-results {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 0.5rem 0;
+}
+
+.command-results::-webkit-scrollbar {
+  width: 8px;
+}
+
+.command-results::-webkit-scrollbar-track {
+  background: rgba(192, 132, 252, 0.05);
+}
+
+.command-results::-webkit-scrollbar-thumb {
+  background: #ff6ec7;
+  border-radius: 4px;
+}
+
+.command-item {
+  padding: 0.875rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-left: 3px solid transparent;
+}
+
+.command-item:hover,
+.command-item.selected {
+  background: rgba(192, 132, 252, 0.1);
+  border-left-color: #ff6ec7;
+}
+
+.command-item.selected {
+  background: rgba(192, 132, 252, 0.15);
+}
+
+.command-item.no-results {
+  color: rgba(225, 194, 255, 0.5);
+  cursor: default;
+  justify-content: center;
+}
+
+.command-item.no-results:hover {
+  background: transparent;
+  border-left-color: transparent;
+}
+
+.command-icon {
+  font-size: 1.2rem;
+  color: #67e8f9;
+  min-width: 24px;
+  text-align: center;
+}
+
+.command-name {
+  flex: 1;
+  font-family: 'Berkeley Mono', 'Courier New', monospace;
+  color: #e2d8ff;
+  font-size: 0.95rem;
+}
+
+.command-type {
+  font-family: 'Berkeley Mono', 'Courier New', monospace;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(192, 132, 252, 0.2);
+  border: 1px solid rgba(192, 132, 252, 0.4);
+  border-radius: 4px;
+  color: #c084fc;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Scanline Toggle Button */
+.scanline-toggle {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Berkeley Mono', 'Courier New', monospace;
+  font-size: 1.25rem;
+  background: rgba(58, 47, 77, 0.6);
+  border: 2px solid rgba(255, 110, 199, 0.4);
+  border-radius: 50%;
+  color: #c084fc;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(192, 132, 252, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.scanline-toggle:hover {
+  background: rgba(58, 47, 77, 0.8);
+  border-color: rgba(255, 110, 199, 0.6);
+  box-shadow: 0 6px 20px rgba(192, 132, 252, 0.3);
+  transform: translateY(-2px);
+}
+
+.scanline-toggle:active {
+  transform: translateY(0);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .command-palette {
+    padding-top: 10vh;
+  }
+
+  .command-palette-container {
+    max-width: 90%;
+    margin: 0 1rem;
+  }
+
+  .command-palette input {
+    padding: 1rem;
+    font-size: 1rem;
+  }
+
+  .command-item {
+    padding: 0.75rem 1rem;
+  }
+
+  .scanline-toggle {
+    bottom: 1rem;
+    right: 1rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.75rem;
+  }
+}

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>the mesa at the end of the universe — vaishnav varma</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+  <div class="site-wrapper">
+
+    <nav class="site-nav">
+      <ul class="site-nav__links">
+        <li><a href="/">home</a></li>
+        <li><a href="/blog/" class="active">blog</a></li>
+        <li><a href="/work.html">work</a></li>
+      </ul>
+      <span class="cmd-hint" id="cmd-hint">ctrl+k</span>
+    </nav>
+
+    <article class="post-page">
+      <header class="post-header">
+        <h1 class="post-header__title">the mesa at the end of the universe</h1>
+        <div class="post-header__meta">
+          <time datetime="2025-03-09T00:00:00">March 09, 2025</time>
+          <span>10 min read</span>
+        </div>
+        <div class="post-header__tags"><span class="tag">research</span><span class="tag">subleq</span><span class="tag">optimization</span><span class="tag">evolution</span></div>
+      </header>
+
+      <div class="post-content">
+        <blockquote>
+<p>"the answer to the great question... of life, the universe and everything... is forty-two." - deep thought</p>
+</blockquote>
+<p>the thing about 42 is that it's a perfectly valid answer. the problem was always the damn question.</p>
+<p>dimitris papailiopoulos's group at UW-Madison <a href="https://x.com/DimitrisPapail/status/2027089179381833858">did something analogous</a>. they trained a 4.9M parameter transformer to learn the execution rule of the simplest possible computer - SUBLEQ. feed it a machine state, it predicts the next one. &gt;99.5% accuracy on unseen programs. SGD found a universal interpreter. that's the answer.</p>
+<p>but nobody asked the question: if training the <em>interpreter</em> is "just gradient descent," what about finding the <em>programs</em> that interpreter would run?</p>
+<p>we spent a few months poking at that question. the answer is... well, it's not 42. it's more like trying to find a specific grain of sand on magrathea. program space is a razor's edge, and no amount of clever searching makes it less sharp.</p>
+<h2 id="what-subleq-is-or-one-instruction-to-rule-them-all">what subleq is (or: one instruction to rule them all)</h2>
+<p>SUBLEQ is the babel fish of computation. one instruction, three numbers:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">mem</span><span class="o">[</span><span class="n">b</span><span class="o">]</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="n">mem</span><span class="o">[</span><span class="n">a</span><span class="o">]</span>
+<span class="k">if</span><span class="w"> </span><span class="n">mem</span><span class="o">[</span><span class="n">b</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">0</span><span class="err">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="nl">c</span>
+<span class="k">else</span><span class="err">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="nl">pc</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">3</span>
+</code></pre></div>
+
+<p>subtract, then conditionally branch. that's it. three operands, turing-complete. any computation you can imagine reduces to a sequence of these.</p>
+<p>here's the intuition for why it's hard to search. imagine a city where every intersection has exactly one traffic light. manhattan works because nearby intersections produce similar journeys. now imagine a city where changing one traffic light teleports you to a random location. that's SUBLEQ: change one address and the program counter jumps somewhere entirely different, executing completely different code. there is no local geometry.</p>
+<figure class="meme">
+<img src="/blog/images/subleq-mesa/you-are-here.jpg" alt="you are here">
+<figcaption>average program space navigation experience</figcaption>
+</figure>
+
+<h2 id="the-mesa-a-landscape-you-cant-climb">the mesa: a landscape you can't climb</h2>
+<p>we measured the fitness landscape of SUBLEQ programs solving modular addition - computing <code>(a + b) mod N</code>. what we found is what we call the <em>mesa topology</em>. if the fitness landscape of neural networks is the rolling hills of the shire, program space is the cliffs of insanity.</p>
+<p><img alt="mesa topology - the flat top, sheer cliff signature of program space" src="/blog/images/subleq-mesa/fig1_mesa.png" /></p>
+<p><strong>zero basin of attraction.</strong> we hill-climbed from 100 random programs. zero reached any working solution. in weight space, random init + gradient descent converges reliably. in program space, you start nowhere and go nowhere.</p>
+<p><strong>huge neutral networks on-manifold.</strong> starting from a known solution, we random-walked while maintaining perfect fitness. the walk reached hamming distance 20 out of 21 mutable values - the program was almost completely rewritten and still worked. this isn't one solution. it's an absurdly large equivalence class connected by neutral mutations - dead code, aliasing, accidental no-ops. like the infinite improbability drive, it shouldn't work, but it does.</p>
+<figure class="meme">
+<img src="/blog/images/subleq-mesa/confused.jpg" alt="what even-">
+<figcaption> well, it works, but we don't know why</figcaption>
+</figure>
+
+<p><strong>catastrophic failure off-manifold.</strong> one mutation to a working program drops mean accuracy from 100% to 59%. two mutations: 42% (there it is again). three: 36%. by five, you're at random baseline. there is no gentle slope. it's a cliff x_x</p>
+<figure class="meme">
+<img src="/blog/images/subleq-mesa/this-is-fine.jpg" alt="this is fine">
+<figcaption>fitness: 1.0. one mutation later: 0.59. this is fine.</figcaption>
+</figure>
+
+<p>flat top, sheer sides, unreachable from below. that's a mesa. it's the opposite of the smooth bowl that SGD surfs in weight space.</p>
+<p>the information theory backs it up. we measured mutual information between individual program values and fitness across 50,000 random programs. max MI per value: 0.29 bits. individual values carry almost no information about correctness. the signal only shows up in <em>coordinated</em> values - instruction 7's source and destination fields have joint MI 0.21 bits above their individual sum. programs are holistic objects. there is no byte-by-byte gradient to follow. you can't decompose the answer into parts any more than you can decompose 42 into useful sub-answers.</p>
+<p><img alt="mutual information between program values and fitness - individual values carry almost nothing" src="/blog/images/subleq-mesa/fig15_information.png" /></p>
+<h2 id="same-system-opposite-geometry">same system, opposite geometry</h2>
+<p>the cleanest experiment puts both spaces on the same substrate. we trained a 138K-parameter transformer to learn the SUBLEQ step function on a miniaturized system (8 cells, 4-bit signed values). 82% accuracy - imperfect, but enough for comparison.</p>
+<p><img alt="the interpreter transformer - 82% accuracy on miniaturized SUBLEQ" src="/blog/images/subleq-mesa/fig11_interpreter.png" /></p>
+<p>then we ran identical perturbation analysis on both:</p>
+<p><strong>transformer weights:</strong> gaussian noise at increasing scales. accuracy holds steady across two orders of magnitude (sigma 0.0001 to 0.015). the cliff comes at sigma ~0.04, roughly 0.07% of the weight norm. even an imperfect interpreter sits in a smooth, wide basin.</p>
+<p><strong>SUBLEQ programs on the same system:</strong> one mutation to a working 3-instruction negate program drops accuracy to 5.7%. two mutations: 1.3%. half-life is less than one mutation.</p>
+<p><img alt="damage curves - transformer weights degrade gracefully, programs fall off a cliff" src="/blog/images/subleq-mesa/fig2_perturbation.png" /></p>
+<p>same computation. same evaluation. the difference is pure geometry. weight space maps nearby parameters to nearby functions. program space maps nearby encodings to unrelated functions. zaphod beeblebrox could navigate weight space with both heads tied behind his back. program space would stump even deep thought.</p>
+<h2 id="why-evolution-can-cross-the-gap-sometimes">why evolution can cross the gap (sometimes)</h2>
+<p>pure hill-climbing fails on mesas. but evolution has tools hill-climbing doesn't: populations maintain diversity on neutral plateaus, and crossover occasionally combines partial solutions. evolution is the infinite improbability drive of optimization - statistically absurd, yet empirically effective.</p>
+<p>when we give evolution the right scaffold, it works. the technique is <em>compositional warm-start</em>: freeze a working subcircuit (addition) and let evolution discover the rest (modular reduction - the branch that subtracts N when the sum overflows).</p>
+<table>
+<thead>
+<tr>
+<th>setup</th>
+<th>result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cold start (no scaffold)</td>
+<td>0/20 solved</td>
+</tr>
+<tr>
+<td>warm-start, mutate everything</td>
+<td>0.76 best fitness</td>
+</tr>
+<tr>
+<td><strong>warm-start, protect head</strong></td>
+<td><strong>17/20 solved, median 195 gens</strong></td>
+</tr>
+</tbody>
+</table>
+<p><img alt="compositional warm-start - freezing the addition head lets evolution find the branch" src="/blog/images/subleq-mesa/fig3_composition.png" /></p>
+<p>across all N from 3 to 30, protect-head solves 17-20 out of 20 seeds.</p>
+<p>but the <em>interface</em> matters. when the addition subcircuit halts, the evolvable tail is unreachable - execution never gets there, no matter what mutations create. with a "flow-through" interface (no halt, execution falls into the tail), the tail becomes reachable and evolution discovers the branch in a few hundred generations.</p>
+<p>this generalizes. we pushed one level deeper: freeze mod-add and evolve mod-multiply (requires a loop). 8/10 solved with a reentrant interface, 0/5 with halt-terminated. same computation, different accessibility. the door has to be open for evolution to walk through it.</p>
+<h2 id="punctuated-equilibrium-on-the-mesa">punctuated equilibrium on the mesa</h2>
+<p>how does evolution navigate the mesa? not smoothly. we tracked the best program every 10 generations. the pattern: long plateaus of neutral drift (hamming distance changes by 0-1 per checkpoint) punctuated by sudden jumps (hamming distance leaps by 3+ in a single generation).</p>
+<p><img alt="stepping stones - fitness plateaus punctuated by sudden structural discoveries" src="/blog/images/subleq-mesa/fig10_stepping_stones.png" /></p>
+<p>each run shows 3-7 jumps. fitness plateaus between them. the mesa topology predicts exactly this - neutral drift until a lucky multi-mutation event finds a higher plateau. the jumps are the program "discovering" a structural motif: a branch target, an address alignment, something that unlocks a new class of test cases.</p>
+<p>this is punctuated equilibrium in the literal gould-eldredge sense, arising from landscape geometry rather than ecological dynamics. darwin would've loved it. or hated it. hard to say.</p>
+<h2 id="the-n10-puzzle">the N=10 puzzle</h2>
+<p>one of the weirdest findings: difficulty is non-monotonic in problem size.</p>
+<table>
+<thead>
+<tr>
+<th>N</th>
+<th>solve rate</th>
+<th>median gens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3</td>
+<td>20/20</td>
+<td>147</td>
+</tr>
+<tr>
+<td>5</td>
+<td>17/20</td>
+<td>195</td>
+</tr>
+<tr>
+<td>7</td>
+<td>17/20</td>
+<td>258</td>
+</tr>
+<tr>
+<td>10</td>
+<td>20/20</td>
+<td>688</td>
+</tr>
+<tr>
+<td>20</td>
+<td>19/20</td>
+<td>91</td>
+</tr>
+<tr>
+<td>30</td>
+<td>20/20</td>
+<td>110</td>
+</tr>
+</tbody>
+</table>
+<p>N=10 is the hardest. despite <em>higher</em> solve rate than N=5 or N=7, its median generation count is 3-4x worse. and larger N is <em>easier</em>. what? o_o</p>
+<p><img alt="the N=10 puzzle - difficulty peaks in the middle, not at the extremes" src="/blog/images/subleq-mesa/fig12_n10_puzzle.png" /></p>
+<p>it's fitness granularity. with N test cases producing N^2 evaluations:</p>
+<ul>
+<li><strong>N=3:</strong> 9 test cases, fitness steps of 11%. random mutations sometimes score nonzero. signal exists.</li>
+<li><strong>N=10:</strong> 100 test cases, fitness steps of 1%. neighbors cluster at ~0.44 fitness. dead zone. almost no gradient.</li>
+<li><strong>N=20:</strong> 400 test cases, steps of 0.25%. fine-grained gradient guides evolution effectively.</li>
+</ul>
+<p>N=10 sits in a goldilocks zone of difficulty - enough test cases that random programs score near-zero, but too few for smooth gradients. like that one restaurant at the end of the universe - technically accessible, practically impossible to get a reservation.</p>
+<h2 id="every-run-finds-a-different-algorithm">every run finds a different algorithm</h2>
+<p>are the solved programs all variations of one algorithm? we re-evolved 20 programs per N value and compared them pairwise.</p>
+<p>all unique. mean hamming distance is 19-20 out of 21 mutable values. these programs are almost completely rewritten from each other. MDS projection shows no clusters - solutions scatter uniformly across a high-dimensional space.</p>
+<p><img alt="program diversity - every solution is unique, scattered uniformly across the space" src="/blog/images/subleq-mesa/fig8_diversity.png" /></p>
+<p>the solution manifold is connected but vast. evolution samples from it approximately uniformly. there isn't <em>one</em> algorithm for modular addition in SUBLEQ - there are astronomically many, and evolution finds a different one every time. it's like how every copy of the hitchhiker's guide has the same information but arranged in a completely different, equally incomprehensible order.</p>
+<h2 id="what-doesnt-help">what doesn't help</h2>
+<p>two things that should've worked but didn't:</p>
+<p><strong>curriculum evolution.</strong> papailiopoulos used curriculum to train his interpreter - easy programs first, then harder ones. we tried the same: easy test cases first, then full. result: curriculum makes things <em>worse</em> (median 1,324 gens vs 608). the bottleneck isn't signal resolution, it's structural. the branch instruction is the hard part, and easy test cases don't test the branch. they just reward the addition head that's already frozen. don't panic, but also don't bother with curriculum here.</p>
+<p><img alt="curriculum hurts - staging easy-to-hard makes evolution slower, not faster" src="/blog/images/subleq-mesa/fig13_curriculum.png" /></p>
+<p><strong>gray code encoding.</strong> SUBLEQ addresses are arbitrary. under standard binary, one bit flip can change address 3 to 35 (catastrophic jump). gray code ensures single-bit flips produce adjacent addresses. if discontinuities were syntactic, this should help. result: nearly identical damage curves, gray code actually <em>slower</em> (median 220 vs 91 gens). the discontinuities are semantic, not syntactic. the branch is all-or-nothing regardless of how you encode addresses. you can't towel your way out of mesa topology.</p>
+<p><img alt="gray code doesn't help - the discontinuities are semantic, not syntactic" src="/blog/images/subleq-mesa/fig16_encoding.png" /></p>
+<figure class="meme">
+<img src="/blog/images/subleq-mesa/surprised-pikachu.jpg" alt="surprised pikachu">
+<figcaption>tried two theoretically sound approaches. both made things worse. :o</figcaption>
+</figure>
+
+<h2 id="so-long-and-thanks-for-all-the-gradients">so long, and thanks for all the gradients</h2>
+<p>the core finding is simple: searchability depends on representation geometry, not computational expressiveness. SUBLEQ and transformers compute the same functions. but weight space creates wide basins where nearby parameters compute nearby functions, while program space creates mesas where nearby encodings compute unrelated functions.</p>
+<p>the question isn't whether a representation is expressive enough. the question is whether it makes the right things <em>adjacent</em>.</p>
+<p>papailiopoulos showed SGD finds interpreters. we showed the programs those interpreters run live on a razor's edge. the gap between these is the gap between learning <em>about</em> computation and learning <em>to</em> compute. transformers bridge it by embedding computation in a representation where search works. SUBLEQ's representation makes search impossible for the same computation.</p>
+<p>don't panic. but maybe don't search program space either.</p>
+<hr />
+<p><em>all experiments reproducible. code and data at <a href="https://github.com/Ja-Crispy">github.com/Ja-Crispy/subleq</a>.</em></p>
+<p><em>thanks to dimitris papailiopoulos and his group for the transformer-side evidence that makes the comparison possible. their <a href="https://x.com/DimitrisPapail/status/2027089179381833858">initial results</a> and <a href="https://x.com/DimitrisPapail/status/2028669695344148946">full writeup</a> are worth reading.</em></p>
+      </div>
+
+      <footer class="post-footer">
+        <a href="/blog/" class="back-link">&larr; all posts</a>
+      </footer>
+    </article>
+
+    <footer class="site-footer">
+      <span>&copy; 2025 vaishnav varma</span>
+      <span class="site-footer__signoff" id="footer-signoff"></span>
+      <div class="site-footer__links">
+        <a href="https://github.com/Ja-Crispy">gh</a>
+        <a href="https://www.linkedin.com/in/vaishnav-varma/">li</a>
+        <a href="mailto:vaisgovivarma@gmail.com">mail</a>
+      </div>
+    </footer>
+  </div>
+
+  <div id="command-palette" class="command-palette hidden">
+    <div class="command-palette__box">
+      <input type="text" id="command-input" class="command-palette__input"
+             placeholder="search or jump to..." autocomplete="off" spellcheck="false">
+      <div id="command-results" class="command-palette__results"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+  <script src="/js/main.js"></script>
+  
+</body>
+</html>

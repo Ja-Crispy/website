@@ -1,0 +1,50 @@
+[
+  {
+    "title": "AI Risk Analysis Platform",
+    "slug": "ai-risk-analysis",
+    "summary": "Multi-agent system for comprehensive risk assessment across 6 categories",
+    "description": "Developed a sophisticated multi-agent AI platform at ScyAI that performs detailed risk assessments through specialized agents for temperature, water, wind, fire, solid mass, and chronic risks. Currently transitioning from API-based LLMs to self-hosted finetuned models.",
+    "tech": ["Python", "LLM", "Multi-Agent", "FastAPI"],
+    "image": "",
+    "features": [
+      "Specialized agents for 6 risk categories",
+      "Transition to self-hosted models",
+      "Tool tokens for improved execution reliability",
+      "Reduced latency through local inference"
+    ],
+    "github": null,
+    "writeup": null
+  },
+  {
+    "title": "BR-V Transmission Optimizer",
+    "slug": "brv-transmission",
+    "summary": "AI-powered automatic transmission optimization using reinforcement learning",
+    "description": "Created an RL-based system to optimize automatic transmission behavior in my Honda BR-V, incorporating realistic vehicle physics, Indian road data, and multiple algorithm comparisons.",
+    "tech": ["Python", "RL", "Simulation", "NumPy"],
+    "image": "",
+    "features": [
+      "Comprehensive physics simulation",
+      "OSM road data integration",
+      "Wind resistance & thermal modeling",
+      "Traffic pattern optimization"
+    ],
+    "github": "https://github.com/yourusername/brv-optimizer",
+    "writeup": null
+  },
+  {
+    "title": "BPTT Limitations Research",
+    "slug": "bptt-research",
+    "summary": "Investigating fundamental limitations in Backpropagation Through Time",
+    "description": "Systematic analysis of BPTT's 'Impossible Triangle' problem for recurrent networks, testing alternative gradient computation approaches including implicit differentiation and forward-mode autodiff.",
+    "tech": ["PyTorch", "Deep Learning", "Research"],
+    "image": "",
+    "features": [
+      "Comprehensive BPTT analysis",
+      "Alternative gradient methods",
+      "Empirical comparisons",
+      "Theoretical framework"
+    ],
+    "github": "https://github.com/yourusername/bptt-research",
+    "writeup": null
+  }
+]
