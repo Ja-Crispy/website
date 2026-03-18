@@ -1,0 +1,428 @@
+{
+  "categories": {
+    "core-ml": {
+      "label": "Core ML/AI",
+      "color": "#e8c547",
+      "tags": [
+        "llm",
+        "neural-networks",
+        "transformers",
+        "interpretability",
+        "alignment",
+        "embeddings"
+      ]
+    },
+    "systems": {
+      "label": "Systems",
+      "color": "#7c9a72",
+      "tags": [
+        "agents",
+        "context-management",
+        "architecture",
+        "infrastructure",
+        "performance",
+        "inference",
+        "dev-tools"
+      ]
+    },
+    "gpu": {
+      "label": "GPU",
+      "color": "#c4837a",
+      "tags": [
+        "gpu",
+        "cuda"
+      ]
+    },
+    "math": {
+      "label": "Math & Theory",
+      "color": "#a89ae8",
+      "tags": [
+        "optimization",
+        "probability",
+        "geometry",
+        "math",
+        "computation",
+        "compilers",
+        "programming-languages"
+      ]
+    },
+    "domains": {
+      "label": "Domains",
+      "color": "#e89a7c",
+      "tags": [
+        "game-dev",
+        "graphics",
+        "physics",
+        "vision",
+        "web"
+      ]
+    },
+    "security": {
+      "label": "Security",
+      "color": "#9ac4e8",
+      "tags": [
+        "security",
+        "cryptography",
+        "policy-engines"
+      ]
+    },
+    "meta": {
+      "label": "Meta",
+      "color": "#c4a645",
+      "tags": [
+        "research",
+        "subleq",
+        "evolution",
+        "jane-street",
+        "puzzles",
+        "combinatorics",
+        "open-source",
+        "meta"
+      ]
+    }
+  },
+  "items": [
+    {
+      "id": "welcome",
+      "title": "hello, world",
+      "type": "post",
+      "url": "/blog/welcome.html",
+      "tags": [
+        "meta"
+      ],
+      "status": "finished",
+      "date_added": "2025-01-27",
+      "notes": "first post. what this is, why it exists, what's coming.",
+      "source": "blog",
+      "reading_time": 1,
+      "categories": [
+        "meta"
+      ],
+      "primary_category": "meta"
+    },
+    {
+      "id": "subleq-mesa",
+      "title": "the mesa at the end of the universe",
+      "type": "post",
+      "url": "/blog/subleq-mesa.html",
+      "tags": [
+        "research",
+        "subleq",
+        "optimization",
+        "evolution"
+      ],
+      "status": "finished",
+      "date_added": "2025-03-09",
+      "notes": "we trained a transformer to be a computer. then we tried to find the programs it would run. turns out program space is a hitchhiker's nightmare.",
+      "source": "blog",
+      "reading_time": 10,
+      "categories": [
+        "meta",
+        "math"
+      ],
+      "primary_category": "meta"
+    },
+    {
+      "id": "nanite-tessellation",
+      "title": "nanite tessellation",
+      "type": "blog",
+      "url": "https://graphicrants.blogspot.com/2026/02/nanite-tessellation.html",
+      "tags": [
+        "game-dev",
+        "graphics",
+        "physics"
+      ],
+      "status": "finished",
+      "date_added": "2025-12-18",
+      "notes": "deep dive into Nanite Dynamic Tessellation \u2014 shader-based displacement mapping that shipped in Unreal Engine 5.4. argues displacement mapping beats storing full mesh topology for data compression, artist workflow, and cross-platform scalability. the physics and rendering math behind it is beautiful.",
+      "source": "garden",
+      "categories": [
+        "domains"
+      ],
+      "primary_category": "domains"
+    },
+    {
+      "id": "solving-ballistic-trajectories",
+      "title": "solving ballistic trajectories",
+      "type": "blog",
+      "url": "https://www.forrestthewoods.com/blog/solving_ballistic_trajectories/",
+      "tags": [
+        "game-dev",
+        "physics",
+        "math"
+      ],
+      "status": "finished",
+      "date_added": "2025-12-28",
+      "notes": "how to calculate launch angles for projectiles hitting targets in games, covering stationary and moving targets. multiple mathematical approaches including a \"lateral speed\" method that improves visual quality. might do a few quick sims for fun.",
+      "source": "garden",
+      "categories": [
+        "domains",
+        "math"
+      ],
+      "primary_category": "domains"
+    },
+    {
+      "id": "simon-veitner-gpu-blog",
+      "title": "simon's blog \u2014 CuTeDSL & GPU kernel programming",
+      "type": "blog",
+      "url": "https://veitner.bearblog.dev/blog/",
+      "tags": [
+        "gpu",
+        "cuda",
+        "performance"
+      ],
+      "status": "reading",
+      "date_added": "2026-01-05",
+      "notes": "absolute goldmine for CUDA and CuTeDSL GPU kernel programming. 50+ posts covering warp specialisation, blackwell pipelining, blockscaled GEMM, and deep dives into GPU assembly. every single post is gold. covers everything from B200 kernel optimization to scale tensor construction.",
+      "source": "garden",
+      "categories": [
+        "gpu",
+        "systems"
+      ],
+      "primary_category": "gpu"
+    },
+    {
+      "id": "fast-llm-inference-from-scratch",
+      "title": "fast LLM inference from scratch",
+      "type": "blog",
+      "url": "https://andrewkchan.dev/posts/yalm.html",
+      "tags": [
+        "llm",
+        "cuda",
+        "performance",
+        "inference"
+      ],
+      "status": "finished",
+      "date_added": "2026-01-12",
+      "notes": "building an LLM inference engine in C++ and CUDA from scratch, no libraries. progressive optimization from CPU multithreading through GPU kernels with memory coalescing and kernel fusion. hits ~64 tok/s on Mistral-7B, competitive with llama.cpp. andrew chan's site is the holy grail \u2014 every post is a masterclass.",
+      "source": "garden",
+      "categories": [
+        "core-ml",
+        "gpu",
+        "systems"
+      ],
+      "primary_category": "core-ml"
+    },
+    {
+      "id": "llms-as-computers",
+      "title": "can LLMs be computers?",
+      "type": "blog",
+      "url": "https://www.percepta.ai/blog/can-llms-be-computers",
+      "tags": [
+        "llm",
+        "computation",
+        "transformers"
+      ],
+      "status": "finished",
+      "date_added": "2026-01-19",
+      "notes": "percepta built a functional WASM calculator inside a transformer architecture that can execute arbitrary C programs across millions of steps. demonstrates \"exponentially faster inference via 2D attention heads.\" wild concept \u2014 turning LLMs into actual general-purpose computers.",
+      "source": "garden",
+      "categories": [
+        "core-ml",
+        "math"
+      ],
+      "primary_category": "core-ml"
+    },
+    {
+      "id": "billion-page-crawl",
+      "title": "crawling a billion web pages in 24 hours",
+      "type": "blog",
+      "url": "https://andrewkchan.dev/posts/crawler.html",
+      "tags": [
+        "infrastructure",
+        "performance",
+        "web"
+      ],
+      "status": "finished",
+      "date_added": "2026-01-25",
+      "notes": "andrew chan crawled 1B+ web pages in ~25.5 hours using 12 AWS instances for $462. reveals that HTML parsing is now a major bottleneck due to larger pages, and SSL computation dominates CPU in fetching. great look at how crawling infrastructure has evolved since 2012.",
+      "source": "garden",
+      "categories": [
+        "systems",
+        "domains"
+      ],
+      "primary_category": "systems"
+    },
+    {
+      "id": "compaction-lobotomy",
+      "title": "solving compaction with lobotomy",
+      "type": "blog",
+      "url": "https://grimridge.net/blog/solving-compaction-with-lobotomy/",
+      "tags": [
+        "llm",
+        "context-management",
+        "dev-tools"
+      ],
+      "status": "finished",
+      "date_added": "2026-02-02",
+      "notes": "wade built an extension for the Pi coding harness that lets the LLM lobotomize itself \u2014 autonomously deleting irrelevant portions of its own outputs and inputs to manage context window limitations. more effective than traditional context management during extended coding sessions. his blog is consistently great.",
+      "source": "garden",
+      "categories": [
+        "core-ml",
+        "systems"
+      ],
+      "primary_category": "core-ml"
+    },
+    {
+      "id": "slate-context-management",
+      "title": "slate: moving beyond ReAct and RLM",
+      "type": "blog",
+      "url": "https://randomlabs.ai/blog/slate",
+      "tags": [
+        "llm",
+        "context-management",
+        "agents",
+        "architecture"
+      ],
+      "status": "experimenting",
+      "date_added": "2026-02-08",
+      "notes": "random labs' technical report introducing a thread-based episodic memory architecture for single-threaded agents. covers the full taxonomy of agent architectures (ReAct, markdown plans, task trees, RLM, Devin/Manus/Altera, Claude Code/Codex) and their tradeoffs across planning, decomposition, synchronization, and expressivity.\n\nkey insight: the bottleneck in long-horizon tasks is context management, not model intelligence. \"knowledge overhang\" \u2014 models know more than they can tactically access.\n\nslate's approach: an orchestrator dispatches bounded worker threads, each executing one action. threads return compressed \"episodes\" (episodic memory) instead of raw context. episodes compose across threads \u2014 one thread's output becomes another's input. this gives you ReAct's expressivity with subagent-level context isolation. maps cleanly onto karpathy's LLM-as-OS framing (orchestrator = kernel, threads = processes, episodes = return values, context window = RAM).\n\nplanning experiments with modifications to their thread weaving approach.",
+      "source": "garden",
+      "categories": [
+        "core-ml",
+        "systems"
+      ],
+      "primary_category": "core-ml"
+    },
+    {
+      "id": "decision-kernel",
+      "title": "decision kernel",
+      "type": "project",
+      "url": "https://devpost.com/software/decision-kernel",
+      "tags": [
+        "agents",
+        "policy-engines"
+      ],
+      "status": "finished",
+      "date_added": "2026-02-14",
+      "notes": "deterministic policy engine using gemini to extract candidate signals from messy evidence documents while keeping humans in the loop for final decisions. validates AI-proposed breaches through a deterministic kernel \u2014 only confirmed policy violations fail, everything else becomes observations for review. full audit trail generation.",
+      "source": "garden",
+      "categories": [
+        "systems",
+        "security"
+      ],
+      "primary_category": "systems"
+    },
+    {
+      "id": "signals-vs-query-compilers",
+      "title": "signals vs query-based compilers",
+      "type": "blog",
+      "url": "https://marvinh.dev/blog/signals-vs-query-based-compilers/",
+      "tags": [
+        "compilers",
+        "programming-languages"
+      ],
+      "status": "finished",
+      "date_added": "2026-02-20",
+      "notes": "explores how modern compilers use query-based architecture similar to signals in UI programming. signals use push-pull systems for synced rendering, while query-based compilers use demand-driven pull-only queries optimized for large codebases. fun parallel between two seemingly unrelated domains.",
+      "source": "garden",
+      "categories": [
+        "math"
+      ],
+      "primary_category": "math"
+    },
+    {
+      "id": "jane-street-feb-2026",
+      "title": "it's alive",
+      "type": "post",
+      "url": "/blog/jane-street-feb-2026.html",
+      "tags": [
+        "jane-street",
+        "neural-networks",
+        "optimization",
+        "puzzles",
+        "combinatorics"
+      ],
+      "status": "finished",
+      "date_added": "2026-02-25",
+      "notes": "reassembling a 48-block neural network from 97 shuffled pieces, and why random chaos beat gradient descent.",
+      "source": "blog",
+      "reading_time": 8,
+      "categories": [
+        "meta",
+        "core-ml",
+        "math"
+      ],
+      "primary_category": "meta"
+    },
+    {
+      "id": "moondream-segmentation",
+      "title": "moondream segmenting update: better masks, 40% faster",
+      "type": "blog",
+      "url": "https://moondream.ai/blog/segmenting-update-2026-03-10",
+      "tags": [
+        "vision",
+        "open-source",
+        "segmentation"
+      ],
+      "status": "finished",
+      "date_added": "2026-02-26",
+      "notes": "favourite OSS vision model. new update does SVG segmentation instead of pixel approaches \u2014 state-of-the-art benchmarks while running 40% faster. 4.4-point improvement on RefCOCO+ Val. the SVG approach is particularly clever.",
+      "source": "garden",
+      "categories": [
+        "domains",
+        "meta"
+      ],
+      "primary_category": "domains"
+    },
+    {
+      "id": "jina-embedding-fingerprinting",
+      "title": "identifying embedding models from raw numerical values",
+      "type": "blog",
+      "url": "https://jina.ai/news/identifying-embedding-models-from-raw-numerical-values/",
+      "tags": [
+        "embeddings",
+        "neural-networks",
+        "security"
+      ],
+      "status": "finished",
+      "date_added": "2026-03-01",
+      "notes": "jina built an 800K-parameter transformer classifier that identifies which embedding model produced a given vector by analyzing raw floating-point digits. 87% accuracy across 68 model-task combinations. tokenizes each number character-by-character, no feature engineering needed. absolute madlads \u2014 fingerprinting models from their output vectors alone.",
+      "source": "garden",
+      "categories": [
+        "core-ml",
+        "security"
+      ],
+      "primary_category": "core-ml"
+    },
+    {
+      "id": "proving-model-identity",
+      "title": "how tinfoil proves exactly what model is running",
+      "type": "blog",
+      "url": "https://tinfoil.sh/blog/2026-02-03-proving-model-identity",
+      "tags": [
+        "security",
+        "llm",
+        "cryptography"
+      ],
+      "status": "finished",
+      "date_added": "2026-03-05",
+      "notes": "tinfoil built Modelwrap \u2014 a cryptographic system using dm-verity and merkle trees to guarantee specific, untampered model weights are being served. verifiable on each request. proves no quantization bullshit happens behind the scenes. runtime integrity that traditional attestation can't provide.",
+      "source": "garden",
+      "categories": [
+        "security",
+        "core-ml"
+      ],
+      "primary_category": "security"
+    },
+    {
+      "id": "algzoo-interpretability",
+      "title": "algzoo: uninterpreted models with fewer than 1,500 parameters",
+      "type": "blog",
+      "url": "https://www.alignment.org/blog/algzoo-uninterpreted-models-with-fewer-than-1-500-parameters/",
+      "tags": [
+        "interpretability",
+        "neural-networks",
+        "alignment"
+      ],
+      "status": "experimenting",
+      "date_added": "2026-03-10",
+      "notes": "ARC released a collection of tiny neural networks (8 to 1,408 parameters) trained on algorithmic tasks as challenge problems for mechanistic interpretability. even models with hundreds of parameters are formidable to fully understand. there's a challenge attached \u2014 planning to leverage tensorlens for experiments on these.",
+      "source": "garden",
+      "categories": [
+        "core-ml"
+      ],
+      "primary_category": "core-ml"
+    }
+  ]
+}

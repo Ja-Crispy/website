@@ -62,14 +62,13 @@ const CommandPalette = {
     { name: 'home',            icon: '~',  type: 'page',   target: '/' },
     { name: 'blog',            icon: '/',  type: 'page',   target: '/blog/' },
     { name: 'work & projects', icon: '>',  type: 'page',   target: '/work.html' },
+    { name: 'garden',          icon: '*',  type: 'page',   target: '/garden/' },
     { name: 'github',          icon: '@',  type: 'ext',    target: 'https://github.com/Ja-Crispy' },
     { name: 'linkedin',        icon: '@',  type: 'ext',    target: 'https://www.linkedin.com/in/vaishnav-varma/' },
     { name: 'email',           icon: '@',  type: 'ext',    target: 'mailto:vaisgovivarma@gmail.com' },
   ],
 
   secrets: {
-    'garden':          'seeds planted. watching them grow...',
-    '/garden':         'seeds planted. watching them grow...',
     'hello world':     'hello, friend.',
     'hello':           'hello, friend.',
     '42':              'the answer to life, the universe, and everything.',
@@ -529,6 +528,10 @@ const Mascot = {
   onGround: false,
   direction: 1,
   jumpsLeft: 3,
+  _dragging: false,
+  _dragOffX: 0, _dragOffY: 0,
+  _dragLastX: 0, _dragLastY: 0,
+  _dragSpeechTimer: 0,
 
   // === CREATURE STATE ===
   energy: 10, maxEnergy: 10,
@@ -624,6 +627,17 @@ const Mascot = {
       '*existential crisis*', 'i think therefore i beep',
     ],
     falling: ['!!', 'aaaa', 'whoa!', '*flails*', 'gravity!', 'not again!'],
+    dragging: [
+      'wheeeee!', 'put me down!', 'i can fly!', '*screams*',
+      'this is fine', 'higher! higher!', 'woooo!', 'i\'m being abducted!',
+      'not the face!', '*giggles*', 'again! again!', 'zoom zoom',
+      'where are we going?', 'I BELIEVE', 'yeet me!', '*clings*',
+    ],
+    dragDrop: [
+      'thanks for the ride!', 'wobbly landing', '*dusts off*',
+      'let\'s do that again', 'my legs!', 'solid ground at last',
+      'parkour landing!', 'stuck the landing!',
+    ],
     onPlatform: [
       'nice view from here', 'i\'m on top of things', 'look at me!',
       'king of the hill', 'parkour!', 'higher ground!',
@@ -755,7 +769,7 @@ const Mascot = {
     // click → pellet spawn
     document.addEventListener('click', (e) => {
       // don't spawn pellets on UI elements
-      if (e.target.closest('.mascot, .command-palette, .doom-modal')) return;
+      if (e.target.closest('.mascot, .command-palette, .doom-modal, #garden-canvas')) return;
       this._spawnPellet(e.clientX, e.clientY, 'click');
 
       // user activity
@@ -796,8 +810,9 @@ const Mascot = {
     // resize
     window.addEventListener('resize', () => this._scanPlatforms());
 
-    // click on creature
+    // click on creature (only if not dragging)
     this.container.addEventListener('click', (e) => {
+      if (this._dragMoved) return; // was a drag, not a click
       e.stopPropagation();
       this.emotion = 'happy';
       this.vy = this.JUMP_VEL * 0.5;
@@ -807,6 +822,87 @@ const Mascot = {
         this._deferredSpeechReward = false;
         this._pendingClickReward = 3.0;
       }
+    });
+
+    // drag the mascot
+    this.container.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this._dragging = true;
+      this._dragMoved = false;
+      this._dragOffX = e.clientX - this.x;
+      this._dragOffY = e.clientY - this.y;
+      this._dragLastX = e.clientX;
+      this._dragLastY = e.clientY;
+      this._dragSpeechTimer = 0;
+      this.vx = 0; this.vy = 0;
+      this.container.style.cursor = 'grabbing';
+      this._speak(this._pick(this.SPEECH.dragging));
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!this._dragging) return;
+      e.preventDefault(); // prevent text selection while dragging
+      this._dragMoved = true;
+      this.x = e.clientX - this._dragOffX;
+      this.y = e.clientY - this._dragOffY;
+      // velocity from drag motion (for momentum on release)
+      this.vx = (e.clientX - this._dragLastX) * 8;
+      this.vy = (e.clientY - this._dragLastY) * 8;
+      this._dragLastX = e.clientX;
+      this._dragLastY = e.clientY;
+      // periodic speech while dragging
+      this._dragSpeechTimer++;
+      if (this._dragSpeechTimer % 40 === 0) {
+        this._speak(this._pick(this.SPEECH.dragging));
+      }
+    });
+    document.addEventListener('mouseup', () => {
+      if (!this._dragging) return;
+      this._dragging = false;
+      this.container.style.cursor = '';
+      this.onGround = false;
+      this._speak(this._pick(this.SPEECH.dragDrop));
+      // clamp velocity so it doesn't fly off screen
+      this.vx = Math.max(-600, Math.min(600, this.vx));
+      this.vy = Math.max(-600, Math.min(600, this.vy));
+    });
+    // touch drag support
+    this.container.addEventListener('touchstart', (e) => {
+      const t = e.touches[0];
+      if (!t) return;
+      this._dragging = true;
+      this._dragMoved = false;
+      this._dragOffX = t.clientX - this.x;
+      this._dragOffY = t.clientY - this.y;
+      this._dragLastX = t.clientX;
+      this._dragLastY = t.clientY;
+      this._dragSpeechTimer = 0;
+      this.vx = 0; this.vy = 0;
+      this._speak(this._pick(this.SPEECH.dragging));
+    }, { passive: true });
+    document.addEventListener('touchmove', (e) => {
+      if (!this._dragging) return;
+      const t = e.touches[0];
+      if (!t) return;
+      this._dragMoved = true;
+      this.x = t.clientX - this._dragOffX;
+      this.y = t.clientY - this._dragOffY;
+      this.vx = (t.clientX - this._dragLastX) * 8;
+      this.vy = (t.clientY - this._dragLastY) * 8;
+      this._dragLastX = t.clientX;
+      this._dragLastY = t.clientY;
+      this._dragSpeechTimer++;
+      if (this._dragSpeechTimer % 40 === 0) {
+        this._speak(this._pick(this.SPEECH.dragging));
+      }
+    }, { passive: true });
+    document.addEventListener('touchend', () => {
+      if (!this._dragging) return;
+      this._dragging = false;
+      this.onGround = false;
+      this._speak(this._pick(this.SPEECH.dragDrop));
+      this.vx = Math.max(-600, Math.min(600, this.vx));
+      this.vy = Math.max(-600, Math.min(600, this.vy));
     });
 
     // save on unload
@@ -870,6 +966,8 @@ const Mascot = {
   //  PHYSICS
   // ─────────────────────────────────────
   _physUpdate(dt) {
+    if (this._dragging) return; // user is dragging — skip physics
+
     const prevY = this.y;
 
     // gravity
@@ -1123,7 +1221,7 @@ const Mascot = {
       case 'jump':
         if (this.jumpsLeft > 0) {
           this.vy = this.JUMP_VEL; this.onGround = false; this.jumpsLeft--;
-          this.energy = Math.max(0, this.energy - 0.5); reward += 0.2; this.emotion = 'happy';
+          this.energy = Math.max(0, this.energy - 0.5); reward += 0.1; this.emotion = 'happy';
         } break;
       case 'idle':
         this.vx *= 0.3; this.energy = Math.min(this.maxEnergy, this.energy + 0.3);
@@ -1194,15 +1292,16 @@ const Mascot = {
       else reward -= 0.5;
     }
 
-    // on-platform bonus (decays so creature doesn't stay up forever)
+    // on-platform bonus (reduced to minimize upward bias)
     if (this.onGround && this.y < window.innerHeight - this.CS - 10) {
-      // first 5 ticks on platform: full reward, then diminishes
       if (!this._platformTicks) this._platformTicks = 0;
       this._platformTicks++;
-      reward += this._platformTicks <= 5 ? 0.8 : 0.1;
+      reward += this._platformTicks <= 5 ? 0.3 : 0.05;  // reduced from 0.8/0.1
     } else {
-      // ground return bonus — reward coming back down
-      if (this._platformTicks > 0) { reward += 1.0; this._platformTicks = 0; }
+      // ground return bonus (reduced to minimize yo-yo behavior)
+      if (this._platformTicks > 0) { reward += 0.3; this._platformTicks = 0; }  // reduced from 1.0
+      // ground comfort — small reward for staying grounded
+      if (this.onGround) reward += 0.05;
     }
 
     // exhaustion penalty
@@ -1619,7 +1718,7 @@ const Mascot = {
   _save() {
     try {
       const data = {
-        version: 3,
+        version: 4,  // v4: reduced upward bias in rewards
         Q: {},
         totalTicks: this.totalTicks,
         stage: this.stage,
@@ -1640,7 +1739,7 @@ const Mascot = {
       const raw = localStorage.getItem('mascot_v2');
       if (!raw) return;
       const data = JSON.parse(raw);
-      if (data.version !== 3) return; // v3: Q-table reset for new reward structure
+      if (data.version !== 4) return; // v4: reduced upward bias in rewards
       this.Q = data.Q || {};
       this.totalTicks = data.totalTicks || 0;
       this.stage = data.stage || 0;

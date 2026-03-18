@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Blog markdown to HTML converter
+Blog & garden builder
 Converts markdown files in src/blog/ to HTML in public/blog/
-Generates metadata.json with post info
+Processes src/garden/*.md into public/garden/garden-data.json
 """
 
 import markdown
@@ -16,6 +16,9 @@ import frontmatter
 SRC_DIR = Path('src/blog')
 OUT_DIR = Path('public/blog')
 METADATA_FILE = Path('public/blog/metadata.json')
+GARDEN_SRC_DIR = Path('src/garden')
+GARDEN_OUT_DIR = Path('public/garden')
+GARDEN_DATA_FILE = Path('public/garden/garden-data.json')
 
 # Markdown extensions
 MD_EXTENSIONS = [
@@ -135,6 +138,7 @@ def generate_html(post_data, series_posts=None):
         <li><a href="/">home</a></li>
         <li><a href="/blog/" class="active">blog</a></li>
         <li><a href="/work.html">work</a></li>
+        <li><a href="/garden/">garden</a></li>
       </ul>
       <span class="cmd-hint" id="cmd-hint">ctrl+k</span>
     </nav>
@@ -230,5 +234,129 @@ def build():
     print(f"\nBuilt {len(posts_metadata)} posts")
 
 
+# Tag category definitions with colors
+TAG_CATEGORIES = {
+    'core-ml': {
+        'label': 'Core ML/AI',
+        'color': '#e8c547',
+        'tags': ['llm', 'neural-networks', 'transformers', 'interpretability', 'alignment', 'embeddings'],
+    },
+    'systems': {
+        'label': 'Systems',
+        'color': '#7c9a72',
+        'tags': ['agents', 'context-management', 'architecture', 'infrastructure', 'performance', 'inference', 'dev-tools'],
+    },
+    'gpu': {
+        'label': 'GPU',
+        'color': '#c4837a',
+        'tags': ['gpu', 'cuda'],
+    },
+    'math': {
+        'label': 'Math & Theory',
+        'color': '#a89ae8',
+        'tags': ['optimization', 'probability', 'geometry', 'math', 'computation', 'compilers', 'programming-languages'],
+    },
+    'domains': {
+        'label': 'Domains',
+        'color': '#e89a7c',
+        'tags': ['game-dev', 'graphics', 'physics', 'vision', 'web'],
+    },
+    'security': {
+        'label': 'Security',
+        'color': '#9ac4e8',
+        'tags': ['security', 'cryptography', 'policy-engines'],
+    },
+    'meta': {
+        'label': 'Meta',
+        'color': '#c4a645',
+        'tags': ['research', 'subleq', 'evolution', 'jane-street', 'puzzles', 'combinatorics', 'open-source', 'meta'],
+    },
+}
+
+
+def get_categories_for_tags(tags):
+    """Return list of category keys, ordered by first matching tag position."""
+    cat_positions = {}
+    for cat_key, cat_data in TAG_CATEGORIES.items():
+        for i, t in enumerate(tags):
+            if t in cat_data['tags']:
+                if cat_key not in cat_positions or i < cat_positions[cat_key]:
+                    cat_positions[cat_key] = i
+                break
+    cats = sorted(cat_positions.keys(), key=lambda k: cat_positions[k])
+    return cats if cats else ['meta']
+
+
+def build_garden():
+    """Build garden-data.json from garden markdown files + blog metadata."""
+    GARDEN_OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    items = []
+
+    # Process garden markdown files
+    garden_files = [f for f in GARDEN_SRC_DIR.glob('*.md') if f.name != 'TAGS.md']
+    print(f"\nGarden: found {len(garden_files)} items")
+
+    for md_file in garden_files:
+        try:
+            with open(md_file, 'r', encoding='utf-8') as f:
+                post = frontmatter.load(f)
+
+            tags = post.get('tags', [])
+            cats = get_categories_for_tags(tags)
+
+            items.append({
+                'id': md_file.stem,
+                'title': post.get('title', md_file.stem.replace('-', ' ')),
+                'type': post.get('type', 'blog'),
+                'url': post.get('url', ''),
+                'tags': tags,
+                'status': post.get('status', 'finished'),
+                'date_added': str(post.get('date_added', '')),
+                'notes': post.content.strip(),
+                'source': 'garden',
+                'categories': cats,
+                'primary_category': cats[0],
+            })
+            print(f"  + {md_file.stem}")
+        except Exception as e:
+            print(f"  x {md_file.name}: {e}")
+
+    # Add blog posts from metadata
+    if METADATA_FILE.exists():
+        blog_meta = json.loads(METADATA_FILE.read_text(encoding='utf-8'))
+        for post in blog_meta:
+            tags = post.get('tags', [])
+            cats = get_categories_for_tags(tags)
+            items.append({
+                'id': post['slug'],
+                'title': post['title'],
+                'type': 'post',
+                'url': f"/blog/{post['slug']}.html",
+                'tags': tags,
+                'status': 'finished',
+                'date_added': post['date'][:10],
+                'notes': post.get('summary', ''),
+                'source': 'blog',
+                'reading_time': post.get('reading_time', 0),
+                'categories': cats,
+                'primary_category': cats[0],
+            })
+            print(f"  + {post['slug']} (blog post)")
+
+    # Sort by date
+    items.sort(key=lambda x: x['date_added'])
+
+    garden_data = {
+        'categories': {k: {'label': v['label'], 'color': v['color'], 'tags': v['tags']}
+                       for k, v in TAG_CATEGORIES.items()},
+        'items': items,
+    }
+
+    GARDEN_DATA_FILE.write_text(json.dumps(garden_data, indent=2), encoding='utf-8')
+    print(f"Garden: built {len(items)} total items")
+
+
 if __name__ == '__main__':
     build()
+    build_garden()

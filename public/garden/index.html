@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>garden — vaishnav varma</title>
+  <meta name="description" content="a living digital garden. things i'm reading, building, and thinking about.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+  <div class="site-wrapper garden-page">
+
+    <nav class="site-nav">
+      <ul class="site-nav__links">
+        <li><a href="/">home</a></li>
+        <li><a href="/blog/">blog</a></li>
+        <li><a href="/work.html">work</a></li>
+        <li><a href="/garden/" class="active">garden</a></li>
+      </ul>
+      <span class="cmd-hint" id="cmd-hint">ctrl+k</span>
+    </nav>
+
+    <section class="garden-header fade-in">
+      <h1 class="page-title">garden</h1>
+      <p class="page-desc">things i'm reading, building, and thinking about. a living collection.</p>
+    </section>
+
+    <div class="garden-container fade-in">
+      <!-- tag sidebar -->
+      <aside class="garden-sidebar" id="garden-sidebar">
+        <div class="garden-sidebar__header">
+          <span class="section-label">tags</span>
+        </div>
+        <div class="garden-sidebar__tags" id="tag-list"></div>
+        <div class="garden-sidebar__controls">
+          <button class="garden-btn" id="filter-mode-btn" title="filter mode">or</button>
+          <button class="garden-btn" id="reset-filters-btn">reset</button>
+        </div>
+      </aside>
+
+      <!-- canvas area -->
+      <div class="garden-canvas-wrapper" id="garden-canvas-wrapper">
+        <canvas id="garden-canvas"></canvas>
+        <div class="garden-zoom" id="garden-zoom">
+          <button class="garden-zoom__btn" id="zoom-in" title="zoom in">+</button>
+          <button class="garden-zoom__btn" id="zoom-out" title="zoom out">&minus;</button>
+          <button class="garden-zoom__btn" id="zoom-fit" title="fit to view">&#9632;</button>
+        </div>
+        <div class="garden-timeline" id="garden-timeline">
+          <button class="garden-timeline__play" id="timeline-play" title="play growth animation">&#9654;</button>
+          <input type="range" class="garden-timeline__scrubber" id="timeline-scrubber" min="0" max="100" value="100">
+          <span class="garden-timeline__label" id="timeline-label">now</span>
+        </div>
+      </div>
+
+      <!-- detail panel -->
+      <aside class="garden-detail hidden" id="garden-detail">
+        <button class="garden-detail__close" id="detail-close">&times;</button>
+        <div class="garden-detail__content" id="detail-content"></div>
+      </aside>
+    </div>
+
+    <!-- mobile fallback -->
+    <div class="garden-mobile" id="garden-mobile"></div>
+
+    <footer class="site-footer">
+      <span>&copy; 2025 vaishnav varma</span>
+      <span class="site-footer__signoff" id="footer-signoff"></span>
+      <div class="site-footer__links">
+        <a href="https://github.com/Ja-Crispy">gh</a>
+        <a href="https://www.linkedin.com/in/vaishnav-varma/">li</a>
+        <a href="mailto:vaisgovivarma@gmail.com">mail</a>
+      </div>
+    </footer>
+  </div>
+
+  <div id="command-palette" class="command-palette hidden">
+    <div class="command-palette__box">
+      <input type="text" id="command-input" class="command-palette__input" placeholder="search or jump to..." autocomplete="off" spellcheck="false">
+      <div id="command-results" class="command-palette__results"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+  <script src="/js/main.js"></script>
+  <script src="/js/garden.js"></script>
+</body>
+</html>
