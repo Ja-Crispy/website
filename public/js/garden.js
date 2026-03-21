@@ -225,7 +225,8 @@ const PlantField = {
       });
     });
 
-    // --- adaptive horizontal spacing ---
+    // --- adaptive horizontal spacing (algorithmic) ---
+    // Step 1: Calculate each tree's extent (how wide it spreads)
     for (const plant of this.plants) {
       let minX = Infinity, maxX = -Infinity;
       for (const seg of plant.tree.segments) {
@@ -238,9 +239,39 @@ const PlantField = {
       plant._extR = maxX - plant.x;
     }
 
-    const minGap = 30;
+    // Step 2: Calculate smart gaps between trees based on content relationships
+    const calculateGap = (plantA, plantB) => {
+      // Get all tags from both plants' items
+      const tagsA = new Set();
+      const tagsB = new Set();
+      plantA.items.forEach(item => item.tags.forEach(t => tagsA.add(t)));
+      plantB.items.forEach(item => item.tags.forEach(t => tagsB.add(t)));
+
+      // Count shared tags (semantic similarity)
+      let sharedTags = 0;
+      for (const tag of tagsA) {
+        if (tagsB.has(tag)) sharedTags++;
+      }
+
+      // Base gap (closer than before)
+      let gap = 20;
+
+      // Pull related trees closer together
+      gap -= sharedTags * 3;
+
+      // Push apart if trees are dense (prevent visual clutter)
+      const densityA = plantA.items.length;
+      const densityB = plantB.items.length;
+      gap += Math.max(densityA, densityB) * 1.5;
+
+      // Never go below minimum
+      return Math.max(8, gap);
+    };
+
+    // Step 3: Position trees with adaptive gaps
     let curX = padX;
-    for (const plant of this.plants) {
+    for (let i = 0; i < this.plants.length; i++) {
+      const plant = this.plants[i];
       const newX = curX + plant._extL;
       const dx = newX - plant.x;
       if (Math.abs(dx) > 0.01) {
@@ -249,11 +280,15 @@ const PlantField = {
         for (const tip of plant.tree.tips) { tip.x += dx; }
         for (const leaf of plant.tree.leaves) { leaf.x += dx; }
       }
-      curX = newX + plant._extR + minGap;
+
+      // Calculate gap to next tree
+      const nextPlant = this.plants[i + 1];
+      const gap = nextPlant ? calculateGap(plant, nextPlant) : 0;
+      curX = newX + plant._extR + gap;
     }
 
     // center the row
-    const totalUsed = curX - minGap;
+    const totalUsed = curX; // curX already accounts for all gaps
     const rowOffset = (w - totalUsed) / 2;
     if (Math.abs(rowOffset) > 1) {
       for (const plant of this.plants) {
@@ -324,6 +359,7 @@ const GardenRenderer = {
   activeFilters: new Set(), filterMode: 'or',
   _growing: false, _phase: 0, _running: false,
   _redrawQueued: false,
+  _userHasZoomed: false, // track if user manually adjusted view
 
   init(canvas) {
     this.canvas = canvas;
@@ -343,7 +379,10 @@ const GardenRenderer = {
     this.canvas.style.height = this.h + 'px';
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     PlantField.build(GardenData, this.w, this.h);
-    this._fitToView();
+    // Only fit to view on initial load, not when user has manually zoomed
+    if (!this._userHasZoomed) {
+      this._fitToView();
+    }
   },
 
   _fitToView() {
@@ -455,7 +494,7 @@ const GardenRenderer = {
     // --- category labels at ground ---
     if (gp > 0.3) {
       ctx.globalAlpha = Math.min(0.35, (gp - 0.3) * 0.5);
-      ctx.font = '9px "JetBrains Mono", monospace';
+      ctx.font = '12px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       for (const plant of PlantField.plants) {
         if (!this._vis(plant)) continue;
@@ -892,6 +931,7 @@ const GardenInteraction = {
       GardenRenderer.zoom = Math.max(0.3, Math.min(3, GardenRenderer.zoom * factor));
       GardenRenderer.panX = mx - (mx - GardenRenderer.panX) * (GardenRenderer.zoom / oldZoom);
       GardenRenderer.panY = my - (my - GardenRenderer.panY) * (GardenRenderer.zoom / oldZoom);
+      GardenRenderer._userHasZoomed = true; // preserve zoom on resize
     }, { passive: false });
 
     // --- drag to pan ---
@@ -905,7 +945,10 @@ const GardenInteraction = {
       if (!this._dragState) return;
       const dx = e.clientX - this._dragState.sx;
       const dy = e.clientY - this._dragState.sy;
-      if (Math.abs(dx) + Math.abs(dy) > 3) this._didDrag = true;
+      if (Math.abs(dx) + Math.abs(dy) > 3) {
+        this._didDrag = true;
+        GardenRenderer._userHasZoomed = true; // preserve pan on resize
+      }
       GardenRenderer.panX = this._dragState.px + dx;
       GardenRenderer.panY = this._dragState.py + dy;
     });
@@ -1010,6 +1053,7 @@ const GardenInteraction = {
       GardenRenderer.zoom = Math.max(0.3, Math.min(3, GardenRenderer.zoom * factor));
       GardenRenderer.panX = cx - (cx - GardenRenderer.panX) * (GardenRenderer.zoom / oldZoom);
       GardenRenderer.panY = cy - (cy - GardenRenderer.panY) * (GardenRenderer.zoom / oldZoom);
+      GardenRenderer._userHasZoomed = true; // preserve zoom on resize
     };
     document.getElementById('zoom-in').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1021,6 +1065,7 @@ const GardenInteraction = {
     });
     document.getElementById('zoom-fit').addEventListener('click', (e) => {
       e.stopPropagation();
+      GardenRenderer._userHasZoomed = false; // reset flag so future resizes work
       GardenRenderer._fitToView();
     });
 
