@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>what's under the cosine — vaishnav varma</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+  <div class="site-wrapper">
+
+    <nav class="site-nav">
+      <ul class="site-nav__links">
+        <li><a href="/">home</a></li>
+        <li><a href="/blog/" class="active">blog</a></li>
+        <li><a href="/work.html">work</a></li>
+        <li><a href="/garden/">garden</a></li>
+      </ul>
+      <span class="cmd-hint" id="cmd-hint">ctrl+k</span>
+    </nav>
+
+    <article class="post-page">
+      <header class="post-header">
+        <h1 class="post-header__title">what's under the cosine</h1>
+        <div class="post-header__meta">
+          <time datetime="2026-04-30T00:00:00">April 30, 2026</time>
+          <span>15 min read</span>
+        </div>
+        <div class="post-header__tags"><span class="tag">research</span><span class="tag">interpretability</span><span class="tag">residual-streams</span><span class="tag">attention-sinks</span><span class="tag">metrics</span></div>
+      </header>
+
+      <div class="post-content">
+        <p><a href="https://x.com/HeMuyu0327">muyu he</a> posted a thread on x arguing that adjacent-layer cosine similarity is a bad proxy for "how much a layer is being utilized". the kind of plot you see in the <a href="https://arxiv.org/abs/2502.05795">curse of depth paper</a> where layers that look highly similar are flagged as wasted depth. his three points:</p>
+<ol>
+<li>cosine angles conflate cancellation and orthogonality. neither necessarily means useful work.</li>
+<li>angle is direction-blind. two transitions with the same angle can rotate in totally different bases.</li>
+<li>a few dominant dimensions can dominate the metric and hide important sub-dominant directions.</li>
+</ol>
+<p>we'd been working on something else. kv cache compression for <a href="https://github.com/TheTom/turboquant_plus">tom turney's turboquant+</a>, some <a href="https://nickyoder.com/johnson-lindenstrauss/">JL-lemma</a>-flavored geometry for keys, a memo on dense vs hybrid k/v asymmetry. the spectral toolkit we'd built (per-head participation ratios, centered/uncentered decomposition) turned out to apply almost verbatim to the layer-utility question. so we ran a small cross-family case study on residual-stream activations. n=3 dense models. apple silicon. one focused session.</p>
+<p>the short version: muyu's right, but in a more model-dependent way than "cosine is bad". cosine has a carrier-dependent failure mode. CKA has a different carrier-dependent failure mode. the thing worth looking at is the carrier, not the metric.</p>
+<h2 id="the-setup">the setup</h2>
+<p>three dense models on m5 max, fp32 forward:</p>
+<ul>
+<li>qwen2.5-1.5b</li>
+<li>gemma-3-1b-it</li>
+<li>mistral-7b-instruct-v0.3</li>
+</ul>
+<p>8 wikitext-2 sequences × 512 tokens each, 4096 total positions per layer. for each layer's hidden states <code>h_l</code> (shape <code>(N, D)</code> after concatenation across sequences) we compute:</p>
+<ul>
+<li><strong>uncentered participation ratio</strong>: <code>d_eff_uc = (Σλ)² / Σλ²</code> on <code>X^T X</code>. measures concentration including any dominant mean direction.</li>
+<li><strong>centered participation ratio</strong>: same on <code>(X - mean)^T (X - mean)</code>. measures variance structure beyond the mean.</li>
+</ul>
+<p>participation ratio is the right tool here because it's intra-tensor, not pairwise. it sidesteps muyu's points 1 and 3 directly: cancellation/orthogonality concerns don't apply (it's a spectrum concentration measure, not a relation between two vectors), and dominant dimensions show up as small d_eff rather than getting averaged into the answer.</p>
+<p>code: <code>scripts/analyze_carrier_structure.py</code> and <code>scripts/compute_cka.py</code> in the <a href="https://github.com/Ja-Crispy/Johnson-Lindenstrauss/tree/preservation/2026-04-23">repo branch</a>. full writeup with numbers: <a href="https://github.com/Ja-Crispy/Johnson-Lindenstrauss/blob/preservation/2026-04-23/docs/layer_structure_carrier_cross_model.md">layer_structure_carrier_cross_model.md</a>.</p>
+<h2 id="first-weird-thing-middle-layers-look-1-dimensional">first weird thing: middle layers look 1-dimensional</h2>
+<p>per-layer <code>d_eff_c</code> for qwen2.5-1.5b across 28 transformer blocks:</p>
+<ul>
+<li>L0 (embedding output): 41.7</li>
+<li>L1 (after first block): 110.8</li>
+<li><strong>L2 through L26: 1.0 to 1.2</strong></li>
+<li>L27: 56.7</li>
+<li>L28 (final): 13.3</li>
+</ul>
+<p>twenty-five consecutive layers with <code>d_eff_c ≈ 1</code>. the activation across 4096 positions has variance concentrated in essentially one direction. and the residual stream norm grows from ~18 at L1 to ~290 at L26. sixteen times larger, all going into one direction.</p>
+<p>if you took this at face value you'd say the model spent 25 layers refining a 1-dimensional representation. that can't be right. so we tested whether removing one direction recovers structure.</p>
+<p><img alt="per-layer d_eff_c on qwen2.5-1.5b, original and after projecting off the top-k carrier subspace" src="/blog/images/whats-under-the-cosine/recovery_qwen.png" /></p>
+<p>after projecting off the rank-1 carrier (the top right singular vector of the stacked L2-L26 activations), middle-layer <code>d_eff_c</code> jumps from ~1 to <strong>70-140</strong>. one direction was hiding rich variance structure underneath.</p>
+<p>same pattern shows up on gemma-3-1b and mistral-7b:</p>
+<p><img alt="gemma d_eff recovery, same shape as qwen with slightly more recovery from rank&gt;1 components" src="/blog/images/whats-under-the-cosine/recovery_gemma.png" /></p>
+<p><img alt="mistral d_eff recovery. the jumps at k=2 and k=3 are the giveaway that mistral has a multi-rank carrier" src="/blog/images/whats-under-the-cosine/recovery_mistral.png" /></p>
+<h2 id="whats-there-a-persistent-low-rank-carrier">what's there: a persistent low-rank carrier</h2>
+<p>across L2-L26 in qwen, the top right singular vector of each layer's centered covariance is essentially the <strong>same direction</strong>. cross-layer alignment matrix <code>M[i,j] = |v_1^(i) · v_1^(j)|</code> averages 0.9995 off-diagonal. one direction, persistent across 25 layers.</p>
+<p><img alt="cross-layer top-PC alignment heatmap for qwen, L2-L26. uniform yellow at mean off-diag 0.9995" src="/blog/images/whats-under-the-cosine/persistence_qwen.png" /></p>
+<p>the top-1 right singular vector of the <strong>stacked</strong> middle-layer activations explains 97.85% of the variance among the top-50 components. for gemma it's 98.03%. for mistral it's 84.42% (rank-2 captures 89%, so mistral's carrier is genuinely 2-3 dimensional rather than rank-1).</p>
+<p>so all three models have a low-rank persistent carrier subspace dominating the residual stream's middle band. the apparent 1-d collapse is a measurement artifact of one (or two) dominant directions. there's rich structure underneath; you just can't see it from raw d_eff or raw cosine.</p>
+<p>this matches the existing literature on "outlier features" and "massive activations". see <a href="https://arxiv.org/abs/2208.07339">dettmers et al. 2022</a> and <a href="https://arxiv.org/abs/2402.17762">sun et al. 2024</a>. what's new is the cross-family test of <em>what kind</em> of carrier each model uses.</p>
+<h2 id="three-families-three-carriers">three families, three carriers</h2>
+<p>we ran two probes on each model's rank-1 carrier:</p>
+<p><strong>probe 1: position localization.</strong> for each token position <code>t</code>, compute <code>|h[t] · c_1|</code>. if a single position has way more carrier energy than the rest, the carrier is acting like an attention sink (a la <a href="https://arxiv.org/abs/2309.17453">xiao et al. 2023</a>).</p>
+<p><strong>probe 2: dark-subspace alignment.</strong> <a href="https://aclanthology.org/2024.acl-long.263/">cancedda 2024</a> showed that on llama2 the BOS attention sink lives in <code>W_unembed</code>'s tail singular vectors. directions the unembedding ignores. we project the carrier onto the bottom-100 right singular vectors of <code>W_unembed</code> and compare to a random direction baseline.</p>
+<table>
+<thead>
+<tr>
+<th>model</th>
+<th style="text-align: right;">peak position</th>
+<th style="text-align: right;">max/median carrier energy at peak</th>
+<th style="text-align: right;">rank-1 carrier in W_unembed tail-100</th>
+<th style="text-align: right;">dark multiplier</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>qwen2.5-1.5b</strong></td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">4083×</td>
+<td style="text-align: right;">35.3%</td>
+<td style="text-align: right;">5.4× random</td>
+</tr>
+<tr>
+<td><strong>mistral-7b</strong></td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">252×</td>
+<td style="text-align: right;">4.21%</td>
+<td style="text-align: right;">1.7× random</td>
+</tr>
+<tr>
+<td><strong>gemma-3-1b</strong></td>
+<td style="text-align: right;">460</td>
+<td style="text-align: right;">1.7× (uniform)</td>
+<td style="text-align: right;">0.88%</td>
+<td style="text-align: right;"><strong>0.1× random (anti-dark)</strong></td>
+</tr>
+</tbody>
+</table>
+<p>three flavors:</p>
+<ul>
+<li><strong>qwen</strong>: position-0 spike of 4000×, partially aligned with <code>W_unembed</code>'s null space. classic cancedda dark sink, weaker than llama2 but recognizable.</li>
+<li><strong>mistral</strong>: position-0 spike of 250×, mildly dark. similar mechanism, lower intensity. by rank-3 the multi-rank carrier hits 23.6× random in tail-20. the dark structure is at higher ranks, not rank-1.</li>
+<li><strong>gemma</strong>: no spike. carrier energy is roughly uniform across positions (max/median = 1.7). and the carrier sits in the <strong>bright</strong> subspace, the directions <code>W_unembed</code> actively reads to produce logits. ten times <em>less</em> in the tail than a random direction.</li>
+</ul>
+<p><img alt="position localization on qwen, single massive spike at position 0, ratio in the thousands" src="/blog/images/whats-under-the-cosine/position_qwen.png" /></p>
+<p><img alt="position localization on mistral, same shape as qwen at lower intensity" src="/blog/images/whats-under-the-cosine/position_mistral.png" /></p>
+<p><img alt="position localization on gemma, no spike, just gentle position dependence" src="/blog/images/whats-under-the-cosine/position_gemma.png" /></p>
+<p>so qwen and mistral have cancedda-style dark sinks. gemma doesn't. gemma has a persistent low-rank carrier just like the others, but the carrier is bright-aligned and position-uniform. whatever it's doing, it isn't an attention sink in the streaming-LLM sense.</p>
+<p><img alt="cross-model dark alignment, rank-1 and rank-3 carrier vs random baseline" src="/blog/images/whats-under-the-cosine/dark_alignment.png" /></p>
+<h2 id="the-cosine-confound-revisited">the cosine confound, revisited</h2>
+<p>so what does this say about adjacent-layer cosine? the original muyu critique was that cosine is too coarse to track layer behavior. with the carrier picture in hand, we can be more specific.</p>
+<p>we computed <code>cos(h_l, h_{l+1})</code> per position and averaged, then did the same after projecting off the top-k carrier subspace, k ∈ {1, 2, 3, 5}. the question: does removing the carrier expose layer-to-layer variation that raw cosine flattens?</p>
+<table>
+<thead>
+<tr>
+<th>model</th>
+<th>raw cos sim band (middle)</th>
+<th style="text-align: right;">mean band gap k=1</th>
+<th style="text-align: right;">k=5</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>qwen2.5-1.5b</td>
+<td>0.85-0.96</td>
+<td style="text-align: right;">0.0004</td>
+<td style="text-align: right;">0.026</td>
+</tr>
+<tr>
+<td>mistral-7b</td>
+<td>0.83-0.95</td>
+<td style="text-align: right;">0.0012</td>
+<td style="text-align: right;">0.006</td>
+</tr>
+<tr>
+<td><strong>gemma-3-1b</strong></td>
+<td><strong>0.97-0.99</strong></td>
+<td style="text-align: right;"><strong>0.136</strong></td>
+<td style="text-align: right;"><strong>0.149</strong></td>
+</tr>
+</tbody>
+</table>
+<p>on qwen and mistral, removing the carrier barely moves cosine. gaps under 0.03 even with rank-5 of the carrier projected off. the perpendicular content also persists per-token across layers. you can't fix cosine on these models by subtracting the dark direction.</p>
+<p>on gemma, removing the carrier drops cosine by <strong>0.10-0.34</strong> across most middle transitions. l17→l18 raw cosine = 0.98, carrier-removed at k=1 = 0.64. that's the kind of variation muyu's hypothesis predicted, and it's what we'd want from a layer-utility metric.</p>
+<p><img alt="carrier-removed cosine on qwen, barely moves at any rank" src="/blog/images/whats-under-the-cosine/cosine_qwen.png" /></p>
+<p><img alt="carrier-removed cosine on gemma, drops substantially at all ranks" src="/blog/images/whats-under-the-cosine/cosine_gemma.png" /></p>
+<p><img alt="carrier-removed cosine on mistral, even more immune than qwen" src="/blog/images/whats-under-the-cosine/cosine_mistral.png" /></p>
+<p>cosine isn't uniformly broken. it's broken in a carrier-identity-dependent way. when the carrier is the sink and the perpendicular subspace also has stable per-token directions, both raw and carrier-removed cosine fail. when the carrier is bright and position-uniform, removing it actually helps.</p>
+<h2 id="cka-isnt-a-fix-either">CKA isn't a fix either</h2>
+<p>the obvious next question: is <a href="https://arxiv.org/abs/1905.00414">linear CKA (kornblith et al. 2019)</a> better? CKA centers and uses gram matrices, in principle robust to outlier dimensions. so we ran adjacent-layer linear CKA, raw and carrier-removed, on the same three models.</p>
+<table>
+<thead>
+<tr>
+<th>model</th>
+<th>raw cos sim band</th>
+<th>raw CKA band</th>
+<th style="text-align: right;">k=1 cos gap</th>
+<th style="text-align: right;">k=1 CKA gap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>qwen2.5-1.5b</td>
+<td>0.85-0.96 (varies)</td>
+<td><strong>0.998-1.000 (saturated)</strong></td>
+<td style="text-align: right;">0.0004</td>
+<td style="text-align: right;">~0.05</td>
+</tr>
+<tr>
+<td>mistral-7b</td>
+<td>0.83-0.95 (varies)</td>
+<td><strong>0.999-1.000 (hyper-saturated)</strong></td>
+<td style="text-align: right;">0.001</td>
+<td style="text-align: right;">~0.005</td>
+</tr>
+<tr>
+<td>gemma-3-1b</td>
+<td>0.97-0.99 (flat)</td>
+<td><strong>0.4-0.99 (varies)</strong></td>
+<td style="text-align: right;">0.14</td>
+<td style="text-align: right;">tracks raw</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="CKA vs cosine on qwen. raw CKA at 1.0 across the entire middle band, more saturated than cosine" src="/blog/images/whats-under-the-cosine/cka_qwen.png" /></p>
+<p><img alt="CKA vs cosine on gemma. raw CKA varies dramatically where cosine is flat" src="/blog/images/whats-under-the-cosine/cka_gemma.png" /></p>
+<p><img alt="CKA vs cosine on mistral. raw CKA hyper-saturated, even more useless than on qwen" src="/blog/images/whats-under-the-cosine/cka_mistral.png" /></p>
+<p>three patterns again, and the CKA story flips depending on the model:</p>
+<ul>
+<li><strong>qwen and mistral</strong>: raw CKA is <strong>even more saturated</strong> than cosine. it sits at 0.998-1.000 across the entire middle band where cosine at least varies between 0.85 and 0.96. the carrier dominates the gram matrix even harder than it dominates the per-token inner product.</li>
+<li><strong>gemma</strong>: raw CKA naturally <strong>exposes</strong> the variation that cosine flattens. l5→l6 raw CKA = 0.40 while raw cosine = 0.97 on the same transition.</li>
+</ul>
+<p>quick intuition for why this flips. CKA's centering should discount uniformly-distributed features. on gemma's position-uniform carrier this works. centering removes the uniform component and CKA tracks what's left. on qwen and mistral the carrier is a position-0 outlier (one position has thousands of times the carrier energy of the rest), and centering across positions doesn't kill that outlier's effect on the gram matrix. CKA gets dominated.</p>
+<p>so CKA isn't a universal fix. it has a different carrier-dependent failure mode than cosine, and on sink-style models the failure is worse. every standard adjacent-layer similarity metric we tried has a carrier-identity-dependent way it can fail.</p>
+<h2 id="bos-check-because-we-should-have">BOS check (because we should have)</h2>
+<p>one nuance from cancedda's setup we didn't initially honor: he uses llama2's default tokenizer which auto-prepends <code>&lt;s&gt;</code>. our <code>tokenizer.encode(..., add_special_tokens=False)</code> skipped BOS. so our "position 0" was the first wikitext content token, not a deliberate BOS marker.</p>
+<p>we re-ran with BOS included to check whether the position-0 sink was anchored on a special token or on the first position regardless.</p>
+<table>
+<thead>
+<tr>
+<th>model</th>
+<th>BOS available?</th>
+<th>without BOS (peak/ratio)</th>
+<th>with BOS (peak/ratio)</th>
+<th>dark alignment unchanged?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>qwen2.5-1.5b</td>
+<td><strong>no, qwen's tokenizer has no BOS token</strong></td>
+<td>pos 0, ratio 4083 (L8)</td>
+<td>n/a</td>
+<td>n/a</td>
+</tr>
+<tr>
+<td>gemma-3-1b</td>
+<td>yes (<code>&lt;bos&gt;</code>)</td>
+<td>uniform, ratio 1.7 (L11)</td>
+<td><strong>pos 0, ratio 10.4</strong> (L9)</td>
+<td>yes (0.88% / 0.10× both runs)</td>
+</tr>
+<tr>
+<td>mistral-7b</td>
+<td>yes (<code>&lt;s&gt;</code>)</td>
+<td>pos 0, ratio 987 (L7)</td>
+<td><strong>pos 0, ratio 2496 (L6)</strong></td>
+<td>yes (1.72× → 1.81×)</td>
+</tr>
+</tbody>
+</table>
+<p>three findings:</p>
+<ul>
+<li><strong>qwen2.5 literally has no BOS token</strong> in its tokenizer (qwen uses chatml templates, no BOS marker). qwen's position-0 sink is <em>necessarily</em> on the first content token, not a special token. you can't make it move by adding BOS.</li>
+<li><strong>gemma</strong>: position-0 spike emerges when BOS is included (1.7× → 10.4×). gemma will absorb carrier energy into a BOS token if you give it one, but doesn't manufacture a sink without one.</li>
+<li><strong>mistral</strong>: sink intensifies with BOS (987× → 2496×). consistent with cancedda's BOS-as-sink mechanism in a different family.</li>
+<li><strong>carrier dark/bright identity is BOS-invariant</strong> in both gemma and mistral. what changes with BOS is sink intensity, not what subspace the carrier lives in.</li>
+</ul>
+<p>so the structural finding (qwen partially dark, mistral mildly dark, gemma anti-dark) holds with or without BOS. it's a property of the model, not of how we tokenized.</p>
+<h2 id="what-this-changes-and-doesnt">what this changes (and doesn't)</h2>
+<p>we didn't find the right metric. we found that the right object is the carrier regime, and that "is layer L being utilized" is the wrong framing for what dense transformers do at depth.</p>
+<p>a cleaner framing: depth in dense transformers is a <strong>transport-plus-computation</strong> trade-off. each model allocates depth between maintaining a low-rank carrier (transport, infrastructure) and doing perpendicular work (computation, content). the carrier can be a dark attention sink (qwen, mistral, llama2), a bright distributed feature (gemma), or some mix. cosine and CKA both fail in carrier-identity-dependent ways because both implicitly assume the residual stream is a single space rather than a transport-plus-computation decomposition.</p>
+<p>the per-model carrier signature looks something like:</p>
+<ul>
+<li><strong>collapsed band</strong>: layers where d_eff_c &lt; ~5</li>
+<li><strong>carrier rank</strong>: 1 (qwen, gemma) or 2-3 (mistral)</li>
+<li><strong>carrier identity</strong>: dark/sink (qwen, mistral) or bright/uniform (gemma)</li>
+<li><strong>carrier-write fraction</strong>: how much each layer's update is along the carrier vs perpendicular (qwen+mistral: 99%+ perpendicular, gemma: 60%+ perpendicular but more variable)</li>
+<li><strong>cosine recoverability</strong>: whether removing the carrier exposes layer variation in cosine</li>
+</ul>
+<p>that's a richer object than a single utilization scalar. and it's the kind of thing that probably wants its own metric portfolio: cancedda's spectral filters, our d_eff decomposition, kornblith CKA, plus ablation impact for causal grounding.</p>
+<h2 id="what-we-didnt-do">what we didn't do</h2>
+<p>caveats explicit in the writeup:</p>
+<ul>
+<li><strong>n = 3 dense families on apple silicon.</strong> no llama, no phi, no MoE, no hybrid. extending breadth requires CUDA for most hybrid families (mamba_ssm, flash_attn deps).</li>
+<li><strong>no causal ablation.</strong> every claim here is structural and observational. the gold-standard test is forward-pass intervention that projects off the carrier subspace at inference time and measures perplexity. that's the natural next experiment.</li>
+<li><strong>wikitext only.</strong> domain effects untested.</li>
+<li><strong>rank-1 dark-alignment is partial.</strong> all three models have dark components at higher carrier ranks. the "qwen dark, gemma bright" dichotomy is specifically about rank-1. by rank-5 mistral is more dark-aligned than qwen.</li>
+<li><strong>mistral cosine immunity is rank-1 only.</strong> at higher ranks even mistral cos sim moves slightly. nothing about subspace removal is binary.</li>
+</ul>
+<p>so this is a strong case study, not a general claim. the carrier picture seems to hold across the three families we did test, which is enough for the next conversation to be about decomposition rather than which similarity metric to swap in.</p>
+<h2 id="whats-next">what's next</h2>
+<p>the obvious next move is causal ablation: project off the carrier subspace at inference time on qwen, measure wikitext perplexity, compare to projecting off matched random subspaces. if the carrier is load-bearing infrastructure (which the position-0 spike of 4000× strongly suggests), removing it should be catastrophic. removing matched random subspaces should be fine. that's the test that would upgrade this from "structural decomposition" to "we know what the carrier is doing".</p>
+<p>after that, more breadth (llama-3, phi, MoE, all gated by hardware), then the harder mech-interp question of what gemma's bright carrier <em>encodes</em>.</p>
+<p>the immediate practical takeaway: when you see a "layers are underutilized" plot from raw adjacent-layer cosine, the first question to ask is what the residual stream's carrier looks like. without that, the metric is reading something other than what its label suggests.</p>
+<hr />
+<p><em>kicked off by <a href="https://x.com/HeMuyu0327">muyu he</a>'s thread on x. thanks to <a href="https://github.com/TheTom">tom turney</a> for kv-cache compression context that surfaced the spectral toolkit, and <a href="https://aclanthology.org/2024.acl-long.263/">nicola cancedda</a> for the dark-signal framework. half this post is just running his test on different models.</em></p>
+<p><em>code, data, and full writeup: <a href="https://github.com/Ja-Crispy/Johnson-Lindenstrauss/tree/preservation/2026-04-23">Ja-Crispy/Johnson-Lindenstrauss @ preservation/2026-04-23</a>.</em></p>
+<p><em>references inline. key ones:</em></p>
+<ul>
+<li><em><a href="https://x.com/HeMuyu0327">muyu he</a> (thread on adjacent-layer cosine and curse of depth)</em></li>
+<li><em><a href="https://aclanthology.org/2024.acl-long.263/">cancedda 2024 — spectral filters, dark signals, attention sinks (ACL long)</a></em></li>
+<li><em><a href="https://arxiv.org/abs/2309.17453">xiao et al. 2023 — streamingLLM / attention sinks</a></em></li>
+<li><em><a href="https://arxiv.org/abs/2402.17762">sun et al. 2024 — massive activations in LLMs</a></em></li>
+<li><em><a href="https://arxiv.org/abs/2208.07339">dettmers et al. 2022 — LLM.int8() / outlier features</a></em></li>
+<li><em><a href="https://arxiv.org/abs/1905.00414">kornblith et al. 2019 — linear CKA</a></em></li>
+<li><em><a href="https://arxiv.org/abs/2502.05795">curse of depth (sun et al. 2025)</a></em></li>
+<li><em><a href="https://github.com/TheTom/turboquant_plus">turboquant+ — tom turney</a></em></li>
+<li><em><a href="https://nickyoder.com/johnson-lindenstrauss/">johnson-lindenstrauss exploration — nick yoder</a></em></li>
+</ul>
+      </div>
+
+      <footer class="post-footer">
+        <a href="/blog/" class="back-link">&larr; all posts</a>
+      </footer>
+    </article>
+
+    <footer class="site-footer">
+      <span>&copy; 2025 vaishnav varma</span>
+      <span class="site-footer__signoff" id="footer-signoff"></span>
+      <div class="site-footer__links">
+        <a href="https://github.com/Ja-Crispy">gh</a>
+        <a href="https://www.linkedin.com/in/vaishnav-varma/">li</a>
+        <a href="mailto:vaisgovivarma@gmail.com">mail</a>
+      </div>
+    </footer>
+  </div>
+
+  <div id="command-palette" class="command-palette hidden">
+    <div class="command-palette__box">
+      <input type="text" id="command-input" class="command-palette__input"
+             placeholder="search or jump to..." autocomplete="off" spellcheck="false">
+      <div id="command-results" class="command-palette__results"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+  <script src="/js/main.js"></script>
+  
+</body>
+</html>

@@ -1,5 +1,23 @@
 [
   {
+    "slug": "whats-under-the-cosine",
+    "title": "what's under the cosine",
+    "date": "2026-04-30T00:00:00",
+    "formatted_date": "April 30, 2026",
+    "reading_time": 15,
+    "tags": [
+      "research",
+      "interpretability",
+      "residual-streams",
+      "attention-sinks",
+      "metrics"
+    ],
+    "summary": "ran a small cross-family case study on dense transformers. adjacent-layer cosine has a carrier-dependent failure mode. so does CKA. the interesting object isn't the metric; it's what's underneath.",
+    "series": "",
+    "series_order": 0,
+    "has_math": false
+  },
+  {
     "slug": "jane-street-feb-2026",
     "title": "it's alive",
     "date": "2026-02-25T00:00:00",

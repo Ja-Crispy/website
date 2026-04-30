@@ -423,6 +423,29 @@
         "core-ml"
       ],
       "primary_category": "core-ml"
+    },
+    {
+      "id": "whats-under-the-cosine",
+      "title": "what's under the cosine",
+      "type": "post",
+      "url": "/blog/whats-under-the-cosine.html",
+      "tags": [
+        "research",
+        "interpretability",
+        "residual-streams",
+        "attention-sinks",
+        "metrics"
+      ],
+      "status": "finished",
+      "date_added": "2026-04-30",
+      "notes": "ran a small cross-family case study on dense transformers. adjacent-layer cosine has a carrier-dependent failure mode. so does CKA. the interesting object isn't the metric; it's what's underneath.",
+      "source": "blog",
+      "reading_time": 15,
+      "categories": [
+        "meta",
+        "core-ml"
+      ],
+      "primary_category": "meta"
     }
   ]
 }
