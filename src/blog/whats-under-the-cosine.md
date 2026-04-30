@@ -5,7 +5,7 @@ tags: ["research", "interpretability", "residual-streams", "attention-sinks", "m
 summary: "ran a small cross-family case study on dense transformers. adjacent-layer cosine has a carrier-dependent failure mode. so does CKA. the interesting object isn't the metric; it's what's underneath."
 ---
 
-[muyu he](https://x.com/HeMuyu0327) posted a thread on x arguing that adjacent-layer cosine similarity is a bad proxy for "how much a layer is being utilized". the kind of plot you see in the [curse of depth paper](https://arxiv.org/abs/2502.05795) where layers that look highly similar are flagged as wasted depth. his three points:
+[muyu he](https://x.com/HeMuyu0327) posted [a thread on x](https://x.com/HeMuyu0327/status/2048615865222938972) arguing that adjacent-layer cosine similarity is a bad proxy for "how much a layer is being utilized". the kind of plot you see in the [curse of depth paper](https://arxiv.org/abs/2502.05795) where layers that look highly similar are flagged as wasted depth. his three points:
 
 1. cosine angles conflate cancellation and orthogonality. neither necessarily means useful work.
 2. angle is direction-blind. two transitions with the same angle can rotate in totally different bases.
@@ -206,13 +206,13 @@ the immediate practical takeaway: when you see a "layers are underutilized" plot
 
 ---
 
-*kicked off by [muyu he](https://x.com/HeMuyu0327)'s thread on x. thanks to [tom turney](https://github.com/TheTom) for kv-cache compression context that surfaced the spectral toolkit, and [nicola cancedda](https://aclanthology.org/2024.acl-long.263/) for the dark-signal framework. half this post is just running his test on different models.*
+*kicked off by [muyu he's thread](https://x.com/HeMuyu0327/status/2048615865222938972). thanks to [tom turney](https://github.com/TheTom) for kv-cache compression context that surfaced the spectral toolkit, and [nicola cancedda](https://aclanthology.org/2024.acl-long.263/) for the dark-signal framework. half this post is just running his test on different models.*
 
 *code, data, and full writeup: [Ja-Crispy/Johnson-Lindenstrauss @ preservation/2026-04-23](https://github.com/Ja-Crispy/Johnson-Lindenstrauss/tree/preservation/2026-04-23).*
 
 *references inline. key ones:*
 
-- *[muyu he](https://x.com/HeMuyu0327) (thread on adjacent-layer cosine and curse of depth)*
+- *[muyu he, thread on adjacent-layer cosine and curse of depth](https://x.com/HeMuyu0327/status/2048615865222938972)*
 - *[cancedda 2024 — spectral filters, dark signals, attention sinks (ACL long)](https://aclanthology.org/2024.acl-long.263/)*
 - *[xiao et al. 2023 — streamingLLM / attention sinks](https://arxiv.org/abs/2309.17453)*
 - *[sun et al. 2024 — massive activations in LLMs](https://arxiv.org/abs/2402.17762)*

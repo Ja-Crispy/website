@@ -34,7 +34,7 @@
       </header>
 
       <div class="post-content">
-        <p><a href="https://x.com/HeMuyu0327">muyu he</a> posted a thread on x arguing that adjacent-layer cosine similarity is a bad proxy for "how much a layer is being utilized". the kind of plot you see in the <a href="https://arxiv.org/abs/2502.05795">curse of depth paper</a> where layers that look highly similar are flagged as wasted depth. his three points:</p>
+        <p><a href="https://x.com/HeMuyu0327">muyu he</a> posted <a href="https://x.com/HeMuyu0327/status/2048615865222938972">a thread on x</a> arguing that adjacent-layer cosine similarity is a bad proxy for "how much a layer is being utilized". the kind of plot you see in the <a href="https://arxiv.org/abs/2502.05795">curse of depth paper</a> where layers that look highly similar are flagged as wasted depth. his three points:</p>
 <ol>
 <li>cosine angles conflate cancellation and orthogonality. neither necessarily means useful work.</li>
 <li>angle is direction-blind. two transitions with the same angle can rotate in totally different bases.</li>
@@ -284,11 +284,11 @@
 <p>after that, more breadth (llama-3, phi, MoE, all gated by hardware), then the harder mech-interp question of what gemma's bright carrier <em>encodes</em>.</p>
 <p>the immediate practical takeaway: when you see a "layers are underutilized" plot from raw adjacent-layer cosine, the first question to ask is what the residual stream's carrier looks like. without that, the metric is reading something other than what its label suggests.</p>
 <hr />
-<p><em>kicked off by <a href="https://x.com/HeMuyu0327">muyu he</a>'s thread on x. thanks to <a href="https://github.com/TheTom">tom turney</a> for kv-cache compression context that surfaced the spectral toolkit, and <a href="https://aclanthology.org/2024.acl-long.263/">nicola cancedda</a> for the dark-signal framework. half this post is just running his test on different models.</em></p>
+<p><em>kicked off by <a href="https://x.com/HeMuyu0327/status/2048615865222938972">muyu he's thread</a>. thanks to <a href="https://github.com/TheTom">tom turney</a> for kv-cache compression context that surfaced the spectral toolkit, and <a href="https://aclanthology.org/2024.acl-long.263/">nicola cancedda</a> for the dark-signal framework. half this post is just running his test on different models.</em></p>
 <p><em>code, data, and full writeup: <a href="https://github.com/Ja-Crispy/Johnson-Lindenstrauss/tree/preservation/2026-04-23">Ja-Crispy/Johnson-Lindenstrauss @ preservation/2026-04-23</a>.</em></p>
 <p><em>references inline. key ones:</em></p>
 <ul>
-<li><em><a href="https://x.com/HeMuyu0327">muyu he</a> (thread on adjacent-layer cosine and curse of depth)</em></li>
+<li><em><a href="https://x.com/HeMuyu0327/status/2048615865222938972">muyu he, thread on adjacent-layer cosine and curse of depth</a></em></li>
 <li><em><a href="https://aclanthology.org/2024.acl-long.263/">cancedda 2024 — spectral filters, dark signals, attention sinks (ACL long)</a></em></li>
 <li><em><a href="https://arxiv.org/abs/2309.17453">xiao et al. 2023 — streamingLLM / attention sinks</a></em></li>
 <li><em><a href="https://arxiv.org/abs/2402.17762">sun et al. 2024 — massive activations in LLMs</a></em></li>
