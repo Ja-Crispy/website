@@ -168,11 +168,56 @@ three findings:
 
 so the structural finding (qwen partially dark, mistral mildly dark, gemma anti-dark) holds with or without BOS. it's a property of the model, not of how we tokenized.
 
+## is the carrier load-bearing? a causal test
+
+everything above is structural. it tells us cosine and CKA flatten a real geometric thing, but not whether the model needs that thing. so we ran a forward-pass intervention.
+
+setup: hook a transformer block's output, modify the residual stream before the next block reads it, run wikitext-2 forward to get next-token NLL. five conditions per target layer:
+
+1. **baseline** — no hook
+2. **carrier_remove**: `h ← h - (h · c) c`
+3. **random_remove**: `h ← h - (h · r) r`, `r` random unit, averaged over seeds
+4. **direction_swap**: `h ← h - (h · c) c + (h · c) r`, `r ⊥ c`. preserves carrier coefficient *magnitude* but redirects to a random orthogonal direction
+5. **centered_remove**: project off the centered top-PC instead of the uncentered carrier
+
+we report ΔNLL (nats per token, vs baseline) as the primary unit. PPL ratios become unstable once a model is broken; nats stay interpretable.
+
+![cross-model ΔNLL bar chart. random direction removal sits at zero everywhere. carrier removal and direction swap are graded by carrier identity. gemma's bright-carrier removal is more catastrophic than uniform random predictor would be.](/blog/images/whats-under-the-cosine/ablation_cross_model.png)
+
+results across three families:
+
+| model · layer | random_remove | carrier_remove | direction_swap | centered_remove |
+|---|---:|---:|---:|---:|
+| Qwen2.5-1.5B  L7   | ~0.00 nats | **+0.83** | +1.15 | +1.08 |
+| Gemma-3-1B  L9 (no BOS) | +0.05 | **+18.67** | +21.07 | +4.50 |
+| Mistral-7B  L13 (fp16) | +0.00 | +0.16 | +1.09 | +0.15 |
+
+three things land cleanly:
+
+**1. random direction removal is at-baseline on every model.** ΔNLL stays under 0.05 nats. so the carrier-removal damage is direction-specific, not "any direction matters". the carrier we identified spectrally is the same direction the model causally depends on.
+
+**2. carrier identity governs the magnitude of the failure.** qwen's dark/sink carrier removal raises NLL by 0.83 nats — the model degrades but stays coherent. mistral's rank-1 removal is even milder (0.16 nats), because mistral's carrier is rank-2 and we only attacked rank-1 here. gemma's bright carrier removal raises NLL by **18.67 nats**. log(vocab_size) on gemma is ≈12.4 nats, the worst possible NLL for a uniform random predictor. gemma at carrier_remove is 6+ nats *above* that ceiling — the model is now actively assigning probability mass *away* from the true tokens. removing the bright carrier breaks the model harder than just confusing it.
+
+so the obvious framing — "bright carriers might be readout-aligned redundancies, dark carriers are the real infrastructure" — is wrong. the bright carrier *is* the infrastructure. the unembedding reads from it directly. break it and the path to logits is gone. the dark sink in qwen is also infrastructure, but a different kind — supports attention transport rather than logit readout. removing it costs you, but logits still have partial routes.
+
+bright vs dark isn't important vs unimportant. it's *what kind of infrastructure*.
+
+**3. direction matters, not just energy.** direction_swap (preserves coefficient magnitude, redirects to random orthogonal direction) is consistently worse than carrier_remove on every model. gap is +0.32 nats on qwen, +2.4 nats on gemma, +0.93 nats on mistral. the model isn't just affected by losing the carrier's energy — it's specifically broken by having that energy redirected to noise. downstream layers must be actively reading the carrier direction as content; wrong-direction energy creates active interference, not just lost signal.
+
+### sanity checks (gemma L9)
+
+we ran two extra controls on gemma's most catastrophic case:
+
+- **hook_noop**: hook returns input unchanged. PPL = 57.9389 = baseline exactly. the hook machinery itself doesn't perturb the residual stream. the catastrophic effect is real.
+- **norm_restored**: project off carrier, then rescale per-position to recover original `||h||`. if the failure were just "next layer's RMSNorm sees the wrong norm", restoring it should help. it does the opposite. ΔNLL goes from +18.7 (plain carrier removal) to +34.0 (norm restored). filling the lost carrier-direction norm into the perpendicular subspace creates more interference, not less. the failure is about what's in the carrier direction, not norm magnitude.
+
+both controls confirm the carrier signal is itself the load-bearing component.
+
 ## what this changes (and doesn't)
 
 we didn't find the right metric. we found that the right object is the carrier regime, and that "is layer L being utilized" is the wrong framing for what dense transformers do at depth.
 
-a cleaner framing: depth in dense transformers is a **transport-plus-computation** trade-off. each model allocates depth between maintaining a low-rank carrier (transport, infrastructure) and doing perpendicular work (computation, content). the carrier can be a dark attention sink (qwen, mistral, llama2), a bright distributed feature (gemma), or some mix. cosine and CKA both fail in carrier-identity-dependent ways because both implicitly assume the residual stream is a single space rather than a transport-plus-computation decomposition.
+a cleaner framing: depth in dense transformers is a **transport-plus-computation** trade-off, and the carrier subspace is causally load-bearing infrastructure. each model allocates depth between maintaining a low-rank carrier (transport, infrastructure that the rest of the network builds around) and doing perpendicular work (computation, content). the carrier can be a dark attention sink (qwen, mistral, llama2), a bright distributed feature (gemma), or some mix. cosine and CKA both fail in carrier-identity-dependent ways because both implicitly assume the residual stream is a single space rather than a transport-plus-computation decomposition.
 
 the per-model carrier signature looks something like:
 
@@ -189,20 +234,23 @@ that's a richer object than a single utilization scalar. and it's the kind of th
 caveats explicit in the writeup:
 
 - **n = 3 dense families on apple silicon.** no llama, no phi, no MoE, no hybrid. extending breadth requires CUDA for most hybrid families (mamba_ssm, flash_attn deps).
-- **no causal ablation.** every claim here is structural and observational. the gold-standard test is forward-pass intervention that projects off the carrier subspace at inference time and measures perplexity. that's the natural next experiment.
 - **wikitext only.** domain effects untested.
 - **rank-1 dark-alignment is partial.** all three models have dark components at higher carrier ranks. the "qwen dark, gemma bright" dichotomy is specifically about rank-1. by rank-5 mistral is more dark-aligned than qwen.
-- **mistral cosine immunity is rank-1 only.** at higher ranks even mistral cos sim moves slightly. nothing about subspace removal is binary.
+- **mistral ablation is rank-1 only at one layer (L13, fp16).** mistral's carrier is genuinely rank-2 (top-1 captures only 84% of stacked variance vs 98% for qwen and gemma). the small ΔNLL of +0.16 on mistral is a lower bound on the full carrier's importance — multi-rank ablation would amplify this. compute budget on m5 max ruled out a full sweep.
+- **norm_restored sanity check is gemma-only.** the conclusion that norm preservation doesn't help may be specific to bright-carrier models. testing on qwen would tighten this.
 
-so this is a strong case study, not a general claim. the carrier picture seems to hold across the three families we did test, which is enough for the next conversation to be about decomposition rather than which similarity metric to swap in.
+so this is a strong case study, not a general claim. the carrier picture and its causal grounding hold across the three families we did test, which is enough for the next conversation to be about decomposition rather than which similarity metric to swap in.
 
 ## what's next
 
-the obvious next move is causal ablation: project off the carrier subspace at inference time on qwen, measure wikitext perplexity, compare to projecting off matched random subspaces. if the carrier is load-bearing infrastructure (which the position-0 spike of 4000× strongly suggests), removing it should be catastrophic. removing matched random subspaces should be fine. that's the test that would upgrade this from "structural decomposition" to "we know what the carrier is doing".
+the obvious next moves:
 
-after that, more breadth (llama-3, phi, MoE, all gated by hardware), then the harder mech-interp question of what gemma's bright carrier *encodes*.
+- **mistral multi-rank ablation.** mistral's carrier is rank-2; rank-1 removal at one layer underreports. would expect a much larger ΔNLL with full carrier-subspace removal.
+- **breadth.** llama-3, phi, MoE families. cancedda 2024 already covers llama-2; extending to llama-3 would be a clean check on whether the family-by-family contrast we saw between qwen, gemma, and mistral persists.
+- **what does gemma's bright carrier encode?** that's mech interp territory: probing, position-conditional analysis, comparing to known content directions in the unembedding. the structural and causal evidence both say it's load-bearing; the mechanistic question is what it's load-bearing *for*.
+- **gemma's carrier as a hybrid case.** gemma has rank-1 ≈ 98% of variance like qwen, but the carrier is bright like none of the cancedda-style models. it's the case least explained by the existing literature.
 
-the immediate practical takeaway: when you see a "layers are underutilized" plot from raw adjacent-layer cosine, the first question to ask is what the residual stream's carrier looks like. without that, the metric is reading something other than what its label suggests.
+the immediate practical takeaway: when you see a "layers are underutilized" plot from raw adjacent-layer cosine, the first question to ask is what the residual stream's carrier looks like, and whether removing that carrier actually breaks the model. without those, the metric is flattening structure that adjacent-layer similarity cannot see and cannot recover by switching to a different similarity metric.
 
 ---
 
