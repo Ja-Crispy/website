@@ -1,5 +1,23 @@
 [
   {
+    "slug": "free-v-stubborn-k",
+    "title": "free v, stubborn k",
+    "date": "2026-05-05T00:00:00",
+    "formatted_date": "May 05, 2026",
+    "reading_time": 10,
+    "tags": [
+      "research",
+      "kv-cache",
+      "quantization",
+      "transformers",
+      "hybrid-models"
+    ],
+    "summary": "tried to build a better kv-cache compressor. the compressor stuff didn't land. the geometry under it did. n=8 spectral profile, plus one weird hybrid result we couldn't follow up on.",
+    "series": "",
+    "series_order": 0,
+    "has_math": false
+  },
+  {
     "slug": "whats-under-the-cosine",
     "title": "what's under the cosine",
     "date": "2026-04-30T00:00:00",

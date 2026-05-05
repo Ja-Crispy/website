@@ -446,6 +446,29 @@
         "core-ml"
       ],
       "primary_category": "meta"
+    },
+    {
+      "id": "free-v-stubborn-k",
+      "title": "free v, stubborn k",
+      "type": "post",
+      "url": "/blog/free-v-stubborn-k.html",
+      "tags": [
+        "research",
+        "kv-cache",
+        "quantization",
+        "transformers",
+        "hybrid-models"
+      ],
+      "status": "finished",
+      "date_added": "2026-05-05",
+      "notes": "tried to build a better kv-cache compressor. the compressor stuff didn't land. the geometry under it did. n=8 spectral profile, plus one weird hybrid result we couldn't follow up on.",
+      "source": "blog",
+      "reading_time": 10,
+      "categories": [
+        "meta",
+        "core-ml"
+      ],
+      "primary_category": "meta"
     }
   ]
 }

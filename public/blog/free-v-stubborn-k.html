@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>free v, stubborn k — vaishnav varma</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+  <div class="site-wrapper">
+
+    <nav class="site-nav">
+      <ul class="site-nav__links">
+        <li><a href="/">home</a></li>
+        <li><a href="/blog/" class="active">blog</a></li>
+        <li><a href="/work.html">work</a></li>
+        <li><a href="/garden/">garden</a></li>
+      </ul>
+      <span class="cmd-hint" id="cmd-hint">ctrl+k</span>
+    </nav>
+
+    <article class="post-page">
+      <header class="post-header">
+        <h1 class="post-header__title">free v, stubborn k</h1>
+        <div class="post-header__meta">
+          <time datetime="2026-05-05T00:00:00">May 05, 2026</time>
+          <span>10 min read</span>
+        </div>
+        <div class="post-header__tags"><span class="tag">research</span><span class="tag">kv-cache</span><span class="tag">quantization</span><span class="tag">transformers</span><span class="tag">hybrid-models</span></div>
+      </header>
+
+      <div class="post-content">
+        <p>this is the partner post to <a href="/blog/whats-under-the-cosine">what's under the cosine</a>. the carrier work in that post grew out of a different project we'd been on for months: kv-cache compression for <a href="https://github.com/TheTom">tom turney's turboquant+</a>. that project ended up not finding the win we hoped for. but the geometry we built up to look at it survived intact, fed the carrier work, and produced one cross-model observation we still can't fully explain.</p>
+<p>so this is the writeup the carrier post owed.</p>
+<h2 id="what-we-set-out-to-do">what we set out to do</h2>
+<p><a href="https://arxiv.org/abs/2504.04658">turboquant</a> (google research, ICLR 2026) compresses kv cache via walsh-hadamard rotation followed by polar quantization. tom's <a href="https://github.com/TheTom/turboquant_plus">turboquant+</a> extends it with asymmetric k/v treatment, turbo kernels for metal and CUDA, and a llama.cpp fork that we used as the working harness. on qwen2.5-7b q8_0 at 32k context, the baseline stack compresses the f16 kv footprint from ~1.8 gb to ~690 mb (2.6×) at 0.55% perplexity cost. that's the thing we were trying to push further.</p>
+<p>the bet: maybe per-head spectral structure could let us beat uniform tq quantization with non-uniform bit allocation. spectralquant (<a href="https://arxiv.org/abs/2402.09221">arxiv 2402.09221</a> and the <a href="https://github.com/spectralquant">spectralquant repo</a>) had already shown that effective dimensionality <code>d_eff</code> is small for keys (~4) and that data-driven rotations followed by 2-tier quantization can beat tq on llama-2 / qwen-2.5-1.5b. our pitch was that a 3-tier extension using the gap between <em>centered</em> and <em>uncentered</em> <code>d_eff</code> would beat 2-tier — capturing a "medium importance" tier of dimensions that 2-tier collapses into the noise tier.</p>
+<p>that's the high-level plan we were on for ~6 weeks. data-driven k rotation, three-tier bit allocation, plug into tom's c++ harness, win.</p>
+<h2 id="what-didnt-land">what didn't land</h2>
+<p>a clean chain of negatives.</p>
+<p><strong>pca dimension pruning</strong>: the original idea was simpler — truncate keys to a smaller dimension, save bits straightforwardly. the JL lemma said this should be fine for pairwise distance preservation. it was catastrophic in practice. on 8 layers of pca-pruned k on llama-3.2-1b, ppl went up by 552%. the problem is each pruned layer shifts the residual stream's geometry for the next layer's pca basis, and errors compound. JL preserves <em>pairwise</em> distances; what attention needs is <em>q-k</em> dot product preservation across an entire downstream stack. those are different requirements, and we conflated them. we deprecated the whole pca-pruning track.</p>
+<p><strong>spectralquant 3-tier on heldout</strong>: this was the main bet. we built a clean replication of sq's exp1 (attention-weight cosine, uniform quant, mean subtraction, both <code>same</code> and <code>heldout</code> splits) and added a 3-tier compressor using the gap between <code>d_eff_uncentered</code> (~4) and <code>d_eff_centered</code> (~38) as tier boundaries. on <code>same</code> split — where calibration and evaluation share data — 3-tier showed a small win at 2.5 bits. on <code>heldout</code> split, the win flipped: at 2.5 bits, sq 2-tier slightly beat our 3-tier. at 3.0 and 2.0 bits, the two were tied within noise. 3-tier was a same-split overfit, not a real win.</p>
+<p><strong>centered-V variant</strong>: we noticed that sq's design uses uncentered eigenvectors but does mean subtraction at compression time. for sink-style models, this means the top-1 eigenvector ≈ mean direction, and after mean subtraction the high-bit signal tier has a near-zero dim wasting bits. the obvious fix: use centered eigenvectors. we tried it. ties or slightly underperforms vanilla sq on both splits, both bit levels. the wasted-bit-on-mean-direction story is real geometry; it's not a practical compression lever.</p>
+<p><strong>SQ vs TQ on a per-head metric</strong>: looking at sq's own released results carefully, their <code>proper_comparison.json</code> on qwen2.5-1.5b reports <code>sq_mean = 0.8306</code> vs <code>tq_mean = 0.8424</code>, with <code>win_rate = 0.42</code> for sq. independently, our heldout result corroborates this: sq doesn't reliably beat tq on this model. so the original spectralquant claim that motivated 3-tier (sq beats tq, we can beat sq) was already shakier than we thought going in.</p>
+<p>after two months of variants, the honest summary was: no clear compressor win. tom's existing q8_0-K + turbo3-V is hard to improve on with the things we tried.</p>
+<h2 id="what-survived">what survived</h2>
+<p>the per-head spectral profiler we built for all of this is what survived. one script, eight models, full per-head per-layer eigendecomposition of post-rope k and v. data-driven rotations saved per-head. fp32 inline calibration. we ran it on:</p>
+<ul>
+<li>qwen2.5 {1.5b, 3b, 7b}</li>
+<li>qwen3-4b</li>
+<li>gemma-3-1b</li>
+<li>mistral-7b-instruct-v0.3</li>
+<li>LFM-2.5-1.2b (hybrid)</li>
+<li>qwen3.5-4b (hybrid)</li>
+</ul>
+<p>n=8 dense + n=2 hybrid. and across that set, two cross-model facts came out clean.</p>
+<h3 id="v-is-wider-than-k-every-model">v is wider than k, every model</h3>
+<p>per-head participation ratio <code>d_eff = (Σλ)² / Σλ²</code> measures how concentrated a head's variance is across head-dim. low <code>d_eff</code> = a few dimensions dominate. high <code>d_eff</code> = variance is spread.</p>
+<table>
+<thead>
+<tr>
+<th>model</th>
+<th style="text-align: right;">k d_eff_uc</th>
+<th style="text-align: right;">k d_eff_c</th>
+<th style="text-align: right;">v d_eff_uc</th>
+<th style="text-align: right;">v d_eff_c</th>
+<th style="text-align: right;">asym (uc)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>gemma-3-1b</td>
+<td style="text-align: right;">4.45</td>
+<td style="text-align: right;">25.58</td>
+<td style="text-align: right;">25.38</td>
+<td style="text-align: right;">51.15</td>
+<td style="text-align: right;">5.7×</td>
+</tr>
+<tr>
+<td>mistral-7b</td>
+<td style="text-align: right;">4.13</td>
+<td style="text-align: right;">38.70</td>
+<td style="text-align: right;">41.19</td>
+<td style="text-align: right;">50.49</td>
+<td style="text-align: right;">10.0×</td>
+</tr>
+<tr>
+<td>qwen2.5-1.5b</td>
+<td style="text-align: right;">4.51</td>
+<td style="text-align: right;">38.03</td>
+<td style="text-align: right;">31.57</td>
+<td style="text-align: right;">46.13</td>
+<td style="text-align: right;">7.0×</td>
+</tr>
+<tr>
+<td>qwen2.5-3b</td>
+<td style="text-align: right;">4.96</td>
+<td style="text-align: right;">39.01</td>
+<td style="text-align: right;">34.10</td>
+<td style="text-align: right;">45.87</td>
+<td style="text-align: right;">6.9×</td>
+</tr>
+<tr>
+<td>qwen2.5-7b</td>
+<td style="text-align: right;">4.78</td>
+<td style="text-align: right;">37.20</td>
+<td style="text-align: right;">41.56</td>
+<td style="text-align: right;">51.03</td>
+<td style="text-align: right;">8.7×</td>
+</tr>
+<tr>
+<td>qwen3-4b</td>
+<td style="text-align: right;">5.30</td>
+<td style="text-align: right;">30.76</td>
+<td style="text-align: right;">35.92</td>
+<td style="text-align: right;">47.10</td>
+<td style="text-align: right;">6.8×</td>
+</tr>
+<tr>
+<td><strong>lfm-2.5-1.2b (hybrid)</strong></td>
+<td style="text-align: right;"><strong>10.86</strong></td>
+<td style="text-align: right;">24.97</td>
+<td style="text-align: right;">26.91</td>
+<td style="text-align: right;">33.09</td>
+<td style="text-align: right;"><strong>2.5×</strong></td>
+</tr>
+<tr>
+<td><strong>qwen3.5-4b (hybrid)</strong></td>
+<td style="text-align: right;"><strong>11.46</strong></td>
+<td style="text-align: right;">36.64</td>
+<td style="text-align: right;">22.84</td>
+<td style="text-align: right;">64.69</td>
+<td style="text-align: right;"><strong>2.0×</strong></td>
+</tr>
+</tbody>
+</table>
+<p><code>uc</code> is uncentered, <code>c</code> is centered. dense k <code>d_eff_uc</code> clusters tightly at 4-5. dense v <code>d_eff_uc</code> is 25-41. v / k uncentered ratio on dense models is 5.7× to 10×. v / k centered is much smaller, 1.2× to 2×.</p>
+<p><img alt="cross-model k/v dumbbell — dense models cluster k at 4-5, hybrid k sits at 10-11" src="/blog/images/free-v-stubborn-k/dumbbell.png" /></p>
+<p>most of the asymmetry is in the <em>uncentered</em> view, not the centered view. that's because dense k has a strong mean direction (a sink, in the <a href="https://aclanthology.org/2024.acl-long.263/">cancedda 2024</a> sense — see the carrier post for that thread) that dominates the uncentered spectrum but vanishes after mean subtraction. dense v doesn't have this; v's energy is genuinely spread across many dimensions both before and after centering.</p>
+<p>this all corroborates tom's "v is free, k is everything" position. independent n=8 cross-family check. the practical implication — q8_0 keys + turbo3 values is sound design — was already his recommendation. we're not adding anything to that conclusion.</p>
+<h3 id="hybrid-k-geometry-is-structurally-different">hybrid k geometry is structurally different</h3>
+<p>this is the only finding in the whole kv arc that we'd call "we didn't expect this".</p>
+<p>dense k <code>d_eff_uc</code> is 4-5 across every dense model in the table. hybrid k (LFM-2.5 and qwen3.5-4b) is 10-11. that's a 2× difference in the same column. and the asymmetry collapses too: dense v/k uncentered ratio is 6-10×, hybrid is 2-2.5×.</p>
+<p>interpretation, with caveats: in dense attention, k tends to develop the cancedda-style massive-activation sink — a few specific channel directions that absorb attention mass on bos / first-position tokens. that's what the low <code>d_eff_uc</code> reflects. hybrid models (LFM has <a href="https://www.liquid.ai">LIV-conv</a> blocks interleaved with attention; qwen3.5 has <a href="https://arxiv.org/abs/2406.06484">DeltaNet</a> interleaved) seem to not develop this single-sink k geometry. their k is spread across more directions even before centering.</p>
+<p>we documented this as an observation worth pinning down further but ran out of road. we tried three more hybrid families (recurrentgemma, zamba2, hymba) on apple silicon to extend the n=2 → n=5 case. all three failed to load:</p>
+<ul>
+<li><strong>recurrentgemma</strong>: griffin architecture; HF wrapper doesn't expose <code>past_key_values</code> for the local-attention layers</li>
+<li><strong>zamba2</strong>: hits a transformers library bug on tied-weights validation for its shared-block architecture</li>
+<li><strong>hymba</strong>: requires <code>causal_conv1d</code>, <code>mamba_ssm</code>, <code>flash_attn</code> — all CUDA-only on PyPI</li>
+</ul>
+<p>so the hybrid k observation stays at n=2 in this writeup. the structural finding ("hybrid k has different spectral geometry from dense k") is real on the two models we have. whether it generalizes across mamba+attention, deltanet, hyena, samba, jamba, etc — completely open.</p>
+<p>this is the thread that still feels like it has more to give. someone with cuda access and the patience to sit through 5-6 hybrid model loads could close it cleanly.</p>
+<h2 id="why-this-fed-the-carrier-work">why this fed the carrier work</h2>
+<p>building the per-head spectral profiler taught us how to do this kind of analysis. when <a href="https://x.com/HeMuyu0327">muyu he</a> posted <a href="https://x.com/HeMuyu0327/status/2048615865222938972">his thread</a> on adjacent-layer cosine being a misleading layer-utility metric, the same toolkit dropped almost verbatim onto residual stream activations. the centered/uncentered participation ratio split, the per-head structure analysis, the mean-direction story — all of it transferred. the carrier post is the continuation.</p>
+<p>so this is one of those projects where the original goal wasn't reached but the secondary infrastructure became the primary output. we set out to build a better k/v compressor. we ended up with a cross-family residual-stream geometry case study that's getting more interest than the compressor work ever would have. that's just how research goes sometimes.</p>
+<h2 id="what-wed-do-differently">what we'd do differently</h2>
+<p>honestly, mostly the same. some specific things we'd skip:</p>
+<ul>
+<li><strong>the pca pruning bench</strong> ate two weeks. should have noticed earlier that it conflated jl-style pairwise preservation with the q-k dot product preservation that attention actually needs. the math was clear in retrospect.</li>
+<li><strong>the SQ 3-tier ablation on <code>same</code> split</strong> got us excited about a non-result. we should have done heldout first. we now keep "always heldout for a calibration-vs-eval evaluation" as a rule.</li>
+<li><strong>the centered-V variant</strong> was a 1-day experiment that we let stretch over a week. when an obvious-feeling fix doesn't work in 2-3 runs, don't keep tuning hyperparams.</li>
+</ul>
+<p>things we'd push harder on:</p>
+<ul>
+<li><strong>the hybrid k thread</strong>, with cuda access. n=2 isn't enough. the obvious next step is recurrentgemma + zamba2 + samba + hymba on a linux gpu box.</li>
+<li><strong>why</strong> dense k develops the sink and hybrid k doesn't. is it an architecture-determined inductive bias of softmax attention? does it require the specific k-projection-then-rope geometry that hybrid models don't all have? we have the symptom; we don't have the mechanism.</li>
+<li><strong>methodology audit of sq's own results</strong>. their <code>same</code> split is the default in their public exp1. it's the wrong default. small thing to flag if interacting with that codebase.</li>
+</ul>
+<h2 id="limits">limits</h2>
+<ul>
+<li>n=8 dense + n=2 hybrid. apple silicon only. wikitext-2 calibration only.</li>
+<li>no causal grounding for the k/v geometry — the carrier post does that for residual stream; we never ran the equivalent intervention test on k or v.</li>
+<li>no compressor result to ship. q8_0-k + turbo3-v remains the recommended config.</li>
+<li>the hybrid k difference is plausibly real but the sample size doesn't carry it past "interesting case study, not a generalization."</li>
+</ul>
+<h2 id="references">references</h2>
+<ul>
+<li><a href="https://arxiv.org/abs/2504.04658">turboquant — google research, ICLR 2026</a></li>
+<li><a href="https://github.com/TheTom/turboquant_plus">turboquant+ — tom turney</a> — production stack with asymmetric k/v</li>
+<li><a href="https://github.com/TheTom/turboquant_plus/blob/main/docs/papers/asymmetric-kv-compression.md">turboquant+ asymmetric-kv-compression doc</a> — "v is free, k is everything"</li>
+<li><a href="https://github.com/TheTom/turboquant_plus/blob/main/docs/papers/layer-aware-v-compression.md">turboquant+ layer-aware-v-compression doc</a> — boundary v policy + hybrid caveat</li>
+<li><a href="https://arxiv.org/abs/2402.09221">spectralquant — arxiv 2402.09221</a></li>
+<li><a href="https://github.com/spectralquant">spectralquant repo</a></li>
+<li><a href="https://aclanthology.org/2024.acl-long.263/">cancedda 2024 — spectral filters, dark signals, attention sinks (ACL long)</a></li>
+<li><a href="https://nickyoder.com/johnson-lindenstrauss/">johnson-lindenstrauss exploration — nick yoder</a> — original repo this work started from</li>
+</ul>
+<p><em>code, data, full memos: <a href="https://github.com/Ja-Crispy/Johnson-Lindenstrauss/tree/research/residual-carriers">Ja-Crispy/Johnson-Lindenstrauss @ research/residual-carriers</a>. the kv-asymmetry memo is in <code>docs/kv_asymmetry_memo.md</code>; the bench a null is in <code>docs/bench_v2_findings.md</code>.</em></p>
+      </div>
+
+      <footer class="post-footer">
+        <a href="/blog/" class="back-link">&larr; all posts</a>
+      </footer>
+    </article>
+
+    <footer class="site-footer">
+      <span>&copy; 2025 vaishnav varma</span>
+      <span class="site-footer__signoff" id="footer-signoff"></span>
+      <div class="site-footer__links">
+        <a href="https://github.com/Ja-Crispy">gh</a>
+        <a href="https://www.linkedin.com/in/vaishnav-varma/">li</a>
+        <a href="mailto:vaisgovivarma@gmail.com">mail</a>
+      </div>
+    </footer>
+  </div>
+
+  <div id="command-palette" class="command-palette hidden">
+    <div class="command-palette__box">
+      <input type="text" id="command-input" class="command-palette__input"
+             placeholder="search or jump to..." autocomplete="off" spellcheck="false">
+      <div id="command-results" class="command-palette__results"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+  <script src="/js/main.js"></script>
+  
+</body>
+</html>
